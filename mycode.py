@@ -50,45 +50,30 @@ G = make_graph(G)
 
 #-----------------------------------------------------------------------------
 def compute_fee(v,u,d,name):
-    if name != 'Eclair':
-        if v == target:
-            prev_amt[u] = amt
-            amount = amt
-            fee = 0
-        else:
-            amount = prev_amt[v]
-            fee = d['BaseFee'] + amount*d['FeeRate']
-        amt1 = amount + fee
-        G.edges[u,v]['Amount'] = amt1
-        if u not in prev_amt:
-            prev_amt[u] = amt1
-        else:
-            prev_amt[u] = min(amt1, prev_amt[u])
+    if v == target or v not in prev_amt:
+        prev_amt[v] = amt
+        amount = amt
     else:
-        if v == target or v not in prev_amt:
-            prev_amt[u] = amt
-            amount = amt
-            fee = 0
-        else:
-            amount = prev_amt[v]
-        fee = d['BaseFee'] + amount*d['FeeRate']
-        amt1 = amount + fee
-        G.edges[u,v]['Amount'] = amt1
-        if u not in prev_amt:
-            prev_amt[u] = amt1
-        else:
-            prev_amt[u] = min(amt1, prev_amt[u])
+        amount = prev_amt[v]
+    if G.edges[u,v]["FeeRate"] < 1:
+        curr_amt = (amount + G.edges[u,v]["BaseFee"])/(1-G.edges[u,v]["FeeRate"])   
+    else:
+        return float('inf')
+    fee = G.edges[u,v]["BaseFee"] + curr_amt*G.edges[u,v]["FeeRate"]
+    if u in prev_amt:
+        prev_amt[u] = min(curr_amt, prev_amt[u])
+    else:
+        prev_amt[u] = curr_amt
+    G.edges[u,v]["Amount"] = prev_amt[u]
     return fee
 
-
-        
 #v - target, u - source, d - G.edges[v,u]
 def lnd_cost(v,u,d):
     global timepref
     rf = 15*10**-9
     fee = compute_fee(v,u,d,'LND')        
     timepref *= 0.9
-    defaultattemptcost = attemptcost+attemptcostppm*G.edges[v,u]['Amount']/1000000
+    defaultattemptcost = attemptcost+attemptcostppm*G.edges[u,v]['Amount']/1000000
     penalty = defaultattemptcost * (1/(0.5-timepref/2) - 1)
     prob_weight = 2**d["LastFailure"]
     prob = apriori * (1-1/prob_weight)
@@ -146,21 +131,19 @@ def route(G, path, source, target):
             u = path[i]
             v = path[i+1]
             fee = G.edges[u,v]["BaseFee"] + amount*G.edges[u,v]["FeeRate"]
-            if v == target:
-                fee = 0  
+            # if v == target:
+            #     fee = 0  
             if amount > G.edges[u,v]["Balance"] or amount<=0:
                 G.edges[u,v]["LastFailure"] = 0
                 j = i-1
                 release_locked(j, path)
-                print(amount,G.edges[u,v]["Balance"])
                 return "Routing failed"
             else:
                 G.edges[u,v]["Balance"] -= amount
                 G.edges[u,v]["Locked"] = amount  
                 G.edges[u,v]["LastFailure"] = 25
-            print(amount)
             amount = amount - fee
-            if v == target and amount<amt:
+            if v == target and amount!=amt:
                 return "Routing Failed"
             
         release_locked(i-1, path)
@@ -170,7 +153,7 @@ def route(G, path, source, target):
         return "Routing Failed due to the above error"
         
 #--------------------------------------------
-amt = 100
+amt = 1000
 attemptcost = 100
 attemptcostppm = 1000
 timepref = 0
@@ -187,7 +170,7 @@ basefactor = 0
 capfactor = 0.5
 cltvfactor = 0.15
 hopcost = 0 #relay fees
-# source = 10144
+# source = 5
 # target = 3
 #----------------------------------------------
 def helper(name, func):
@@ -198,7 +181,7 @@ def helper(name, func):
             print(res)
             print(route(G, res, source, target))
         else:
-            res = list(islice(nx.shortest_simple_paths(G, target, source, func), 1))
+            res = list(islice(nx.shortest_simple_paths(G, target, source, func), 2))
             print(res)
             for path in res:
                 print(route(G, path, source, target))
@@ -211,8 +194,8 @@ for i in range(1):
     source = -1
     target = -1
     while (target == source or (source not in G.nodes()) or (target not in G.nodes())):
-        target = rn.randint(0, 11197)
-        source = rn.randint(0, 11197)
+        target = rn.randint(0, 13129)
+        source = rn.randint(0, 13129)
     print("\nSource = ",source, "Target = ", target)
     print("----------------------------------------------")
     for name in algo:
