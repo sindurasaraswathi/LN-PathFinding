@@ -41,48 +41,72 @@ def make_graph(G):
         G.edges[u,v]['LastFailure'] = 25
         x = rn.uniform(0, int(df['satoshis'][i]))
         G.edges[u,v]['Balance'] = x
-        G.edges[u,v]['Amount'] = float('inf')
+        G.edges[u,v]['Amount'] = amt
     return G
-        
+amt = 1000        
 G = nx.DiGraph()
 cbr = 815700
 G = make_graph(G)
-
 #-----------------------------------------------------------------------------
+def sub_func(u,v, amount):
+    global connected_nodes, amt_dict, fee_dict, prev_node
+    connected_nodes[v].append(u)
+    fee = G.edges[u,v]["BaseFee"] + amount*G.edges[u,v]["FeeRate"]
+    fee_dict[(u,v)] = fee
+    amt_dict[(u,v)] = amount+fee
+    
 def compute_fee(v,u,d,name):
-    if v == target or v not in prev_amt:
-        prev_amt[v] = amt
-        amount = amt
-    else:
-        amount = prev_amt[v]
-    if G.edges[u,v]["FeeRate"] < 1:
-        curr_amt = (amount + G.edges[u,v]["BaseFee"])/(1-G.edges[u,v]["FeeRate"])   
-    else:
-        return float('inf')
-    fee = G.edges[u,v]["BaseFee"] + curr_amt*G.edges[u,v]["FeeRate"]
-    if u in prev_amt:
-        prev_amt[u] = min(curr_amt, prev_amt[u])
-    else:
-        prev_amt[u] = curr_amt
-    G.edges[u,v]["Amount"] = prev_amt[u]
-    return fee
-
+    try:
+        global connected_nodes, fee_dict, amt_dict, visited, cache_node, prev_node
+        if v not in connected_nodes:
+            connected_nodes[v] = []
+        if v == target:
+            cache_node = v
+            amount = amt
+            sub_func(u,v,amount)
+            print(amt_dict, fee_dict, connected_nodes)
+        else:
+            # print(v)
+            if cache_node != v:
+                visited.append(cache_node)
+                cache_node = v
+                found_prev_node = False
+                while not(found_prev_node):
+                    temp = visited[0]
+                    if v in connected_nodes[temp]:
+                        found_prev_node = True
+                        prev_node = temp
+                    else:
+                        visited.pop(0)
+                        found_prev_node = False
+            amount = amt_dict[(v, prev_node)]
+            sub_func(u,v, amount)
+    except:
+        print(u,v)
+        # print(connected_nodes)
+        print("fee")
+        raise
+            
 #v - target, u - source, d - G.edges[v,u]
 def lnd_cost(v,u,d):
-    global timepref
-    rf = 15*10**-9
-    fee = compute_fee(v,u,d,'LND')        
-    timepref *= 0.9
-    defaultattemptcost = attemptcost+attemptcostppm*G.edges[u,v]['Amount']/1000000
-    penalty = defaultattemptcost * (1/(0.5-timepref/2) - 1)
-    prob_weight = 2**d["LastFailure"]
-    prob = apriori * (1-1/prob_weight)
-    if prob == 0:
-        cost = float('inf')
-    else:
-        cost = fee + d['Delay']*G.edges[u,v]['Amount']*rf + penalty/prob
-    return cost
-
+    try:
+        global timepref
+        rf = 15*10**-9
+        compute_fee(v,u,d,'LND')        
+        timepref *= 0.9
+        defaultattemptcost = attemptcost+attemptcostppm*amt_dict[(u,v)]/1000000
+        penalty = defaultattemptcost * (1/(0.5-timepref/2) - 1)
+        prob_weight = 2**d["LastFailure"]
+        prob = apriori * (1-1/prob_weight)
+        if prob == 0:
+            cost = float('inf')
+        else:
+            cost = fee_dict[(u,v)] + d['Delay']*amt_dict[(u,v)]*rf + penalty/prob
+        return cost
+    except Exception as e:
+        print('Lnd_cost')
+        raise 
+        
 
 def cln_cost(v,u,d):
     rf = 10
@@ -126,13 +150,20 @@ def release_locked(j, path):
 def route(G, path, source, target):
     try:
         path = path[::-1]
-        amount = G.edges[source, path[1]]['Amount']
+        amt_list = []
         for i in range(len(path)-1):
             u = path[i]
             v = path[i+1]
-            fee = G.edges[u,v]["BaseFee"] + amount*G.edges[u,v]["FeeRate"]
-            # if v == target:
-            #     fee = 0  
+            amt_list.append(amt_dict[(u,v)])
+        amt_list.append(amt)
+        print(amt_list)
+        amount = amt_list[0]
+        for i in range(len(path)-1):
+            u = path[i]
+            v = path[i+1]
+            curr_amt = amt_list[i+1]
+            print(1, fee_dict[(u,v)], amt_list[i], curr_amt)
+            fee = G.edges[u,v]["BaseFee"] + curr_amt*G.edges[u,v]["FeeRate"]
             if amount > G.edges[u,v]["Balance"] or amount<=0:
                 G.edges[u,v]["LastFailure"] = 0
                 j = i-1
@@ -144,7 +175,8 @@ def route(G, path, source, target):
                 G.edges[u,v]["LastFailure"] = 25
             amount = amount - fee
             if v == target and amount!=amt:
-                return "Routing Failed"
+                print("Amount is", amount)
+                return "Routing Failed_1"
             
         release_locked(i-1, path)
         return "Routing Successful"
@@ -170,35 +202,39 @@ basefactor = 0
 capfactor = 0.5
 cltvfactor = 0.15
 hopcost = 0 #relay fees
-# source = 5
-# target = 3
+source = 1
+target = 2
 #----------------------------------------------
 def helper(name, func):
     try:
         print("**",name,"**")
         if name != 'Eclair':
             res = nx.dijkstra_path(G, target, source, func)
-            print(res)
+            print(res[::-1])
             print(route(G, res, source, target))
         else:
             res = list(islice(nx.shortest_simple_paths(G, target, source, func), 2))
-            print(res)
+            print(res[::-1])
             for path in res:
                 print(route(G, path, source, target))
     except Exception as e:
         print(e)
         
 algo = {'LND':lnd_cost, 'CLN':cln_cost, 'LDK':ldk_cost, 'Eclair': eclair_cost}      
-# algo = {'LND':lnd_cost}
+algo = {'LND':lnd_cost}
 for i in range(1): 
-    source = -1
-    target = -1
-    while (target == source or (source not in G.nodes()) or (target not in G.nodes())):
-        target = rn.randint(0, 13129)
-        source = rn.randint(0, 13129)
+    # source = -1
+    # target = -1
+    # while (target == source or (source not in G.nodes()) or (target not in G.nodes())):
+    #     target = rn.randint(0, 13129)
+    #     source = rn.randint(0, 13129)
     print("\nSource = ",source, "Target = ", target)
     print("----------------------------------------------")
     for name in algo:
-        prev_amt = {}
+        global connected_nodes, fee_dict, amt_dict, visited, cache_node, prev_node
+        connected_nodes = {}
+        fee_dict = {}
+        amt_dict = {}
+        visited = []
         helper(name, algo[name])
     
