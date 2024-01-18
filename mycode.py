@@ -55,63 +55,53 @@ def sub_func(u,v, amount):
     fee_dict[(u,v)] = fee
     amt_dict[(u,v)] = amount+fee
     
-def compute_fee(v,u,d,name):
-    try:
-        global connected_nodes, fee_dict, amt_dict, visited, cache_node, prev_node
-        if v not in connected_nodes:
-            connected_nodes[v] = []
-        if v == target:
+def compute_fee(v,u,d):
+    global connected_nodes, fee_dict, amt_dict, visited, cache_node, prev_node
+    if v not in connected_nodes:
+        connected_nodes[v] = []
+    if v == target:
+        cache_node = v
+        amount = amt
+        sub_func(u,v,amount)
+    else:
+        if cache_node != v:
+            visited.append(cache_node)
             cache_node = v
-            amount = amt
-            sub_func(u,v,amount)
-            print(amt_dict, fee_dict, connected_nodes)
-        else:
-            # print(v)
-            if cache_node != v:
-                visited.append(cache_node)
-                cache_node = v
-                found_prev_node = False
-                while not(found_prev_node):
-                    temp = visited[0]
-                    if v in connected_nodes[temp]:
-                        found_prev_node = True
-                        prev_node = temp
-                    else:
-                        visited.pop(0)
-                        found_prev_node = False
-            amount = amt_dict[(v, prev_node)]
-            sub_func(u,v, amount)
-    except:
-        print(u,v)
-        # print(connected_nodes)
-        print("fee")
-        raise
+            found_prev_node = False
+            i = 0
+            while not(found_prev_node):
+                prev_node = visited[i]
+                if v in connected_nodes[prev_node]:
+                    found_prev_node = True
+                else:
+                    i += 1
+                    found_prev_node = False
+            # connected_nodes[prev_node].remove(v)
+        amount = amt_dict[(v, prev_node)]
+        sub_func(u,v, amount)
+
             
 #v - target, u - source, d - G.edges[v,u]
 def lnd_cost(v,u,d):
-    try:
-        global timepref
-        rf = 15*10**-9
-        compute_fee(v,u,d,'LND')        
-        timepref *= 0.9
-        defaultattemptcost = attemptcost+attemptcostppm*amt_dict[(u,v)]/1000000
-        penalty = defaultattemptcost * (1/(0.5-timepref/2) - 1)
-        prob_weight = 2**d["LastFailure"]
-        prob = apriori * (1-1/prob_weight)
-        if prob == 0:
-            cost = float('inf')
-        else:
-            cost = fee_dict[(u,v)] + d['Delay']*amt_dict[(u,v)]*rf + penalty/prob
-        return cost
-    except Exception as e:
-        print('Lnd_cost')
-        raise 
+    global timepref
+    rf = 15*10**-9
+    compute_fee(v,u,d)        
+    timepref *= 0.9
+    defaultattemptcost = attemptcost+attemptcostppm*amt_dict[(u,v)]/1000000
+    penalty = defaultattemptcost * (1/(0.5-timepref/2) - 1)
+    prob_weight = 2**d["LastFailure"]
+    prob = apriori * (1-1/prob_weight)
+    if prob == 0:
+        cost = float('inf')
+    else:
+        cost = fee_dict[(u,v)] + d['Delay']*amt_dict[(u,v)]*rf + penalty/prob
+    return cost
         
 
 def cln_cost(v,u,d):
     rf = 10
-    fee = compute_fee(v,u,d, 'CLN')
-    cost = G.edges[u,v]['Amount']*(1+(rf*d["Delay"])/(blk_per_year*100))+1
+    compute_fee(v,u,d)
+    cost = amt_dict[(u,v)]*(1+(rf*d["Delay"])/(blk_per_year*100))+1
     return cost
 
 
@@ -121,20 +111,20 @@ def normalize(value, minm, maxm):
 
 
 def eclair_cost(v,u,d):
-    fee = compute_fee(v,u,d, 'Eclair')
+    compute_fee(v,u,d)
     ncap = 1-normalize(d["capacity"], min_cap, max_cap)
     nage = normalize(d["Age"], d["Age"]-365*24*6, cbr)
     ncltv = normalize(d["Delay"], min_cltv, max_cltv)
-    cost = (fee+hopcost)*(basefactor + (ncltv*cltvfactor)+
+    cost = (fee_dict[(u,v)]+hopcost)*(basefactor + (ncltv*cltvfactor)+
                           (nage*agefactor)+(ncap*capfactor))
     return cost
 
 
 def ldk_cost(v,u,d):
     htlc_minimum = d['htlc_min']
-    fee = compute_fee(v,u,d, 'LDK')
-    penalty = 500 + (8192*G.edges[u,v]['Amount'])/2**30
-    cost = max(fee, htlc_minimum) + penalty
+    compute_fee(v,u,d)
+    penalty = 500 + (8192*amt_dict[(u,v)])/2**30
+    cost = max(fee_dict[(u,v)], htlc_minimum) + penalty
     return cost
 
 
@@ -151,18 +141,20 @@ def route(G, path, source, target):
     try:
         path = path[::-1]
         amt_list = []
+        total_fee = 0
         for i in range(len(path)-1):
             u = path[i]
             v = path[i+1]
             amt_list.append(amt_dict[(u,v)])
+            total_fee += fee_dict[(u,v)]
         amt_list.append(amt)
-        print(amt_list)
         amount = amt_list[0]
+        curr_amt = amt_list[1]
         for i in range(len(path)-1):
             u = path[i]
             v = path[i+1]
             curr_amt = amt_list[i+1]
-            print(1, fee_dict[(u,v)], amt_list[i], curr_amt)
+            print(1, fee_dict[(u,v)], amt_list[i])
             fee = G.edges[u,v]["BaseFee"] + curr_amt*G.edges[u,v]["FeeRate"]
             if amount > G.edges[u,v]["Balance"] or amount<=0:
                 G.edges[u,v]["LastFailure"] = 0
@@ -176,10 +168,10 @@ def route(G, path, source, target):
             amount = amount - fee
             if v == target and amount!=amt:
                 print("Amount is", amount)
-                return "Routing Failed_1"
+                return "Routing Failed"
             
         release_locked(i-1, path)
-        return "Routing Successful"
+        return f"Routing Successful with total path fee = {total_fee}"
     except Exception as e:
         print(e)
         return "Routing Failed due to the above error"
@@ -202,8 +194,7 @@ basefactor = 0
 capfactor = 0.5
 cltvfactor = 0.15
 hopcost = 0 #relay fees
-source = 1
-target = 2
+
 #----------------------------------------------
 def helper(name, func):
     try:
@@ -220,14 +211,14 @@ def helper(name, func):
     except Exception as e:
         print(e)
         
-algo = {'LND':lnd_cost, 'CLN':cln_cost, 'LDK':ldk_cost, 'Eclair': eclair_cost}      
-algo = {'LND':lnd_cost}
+algo = {'LND':lnd_cost, 'CLN':cln_cost, 'LDK':ldk_cost}      
+# algo = {'LND':lnd_cost}
 for i in range(1): 
-    # source = -1
-    # target = -1
-    # while (target == source or (source not in G.nodes()) or (target not in G.nodes())):
-    #     target = rn.randint(0, 13129)
-    #     source = rn.randint(0, 13129)
+    source = -1
+    target = -1
+    while (target == source or (source not in G.nodes()) or (target not in G.nodes())):
+        target = rn.randint(0, 13129)
+        source = rn.randint(0, 13129)
     print("\nSource = ",source, "Target = ", target)
     print("----------------------------------------------")
     for name in algo:
@@ -236,5 +227,7 @@ for i in range(1):
         fee_dict = {}
         amt_dict = {}
         visited = []
+        cache_node = target
+        prev_node = target
         helper(name, algo[name])
     
