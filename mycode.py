@@ -48,37 +48,31 @@ G = nx.DiGraph()
 cbr = 815700
 G = make_graph(G)
 #-----------------------------------------------------------------------------
+
 def sub_func(u,v, amount):
-    global connected_nodes, amt_dict, fee_dict, prev_node
-    connected_nodes[v].append(u)
+    global amt_dict, fee_dict, prev_node, prev_dict, iamt, visited
     fee = G.edges[u,v]["BaseFee"] + amount*G.edges[u,v]["FeeRate"]
     fee_dict[(u,v)] = fee
     amt_dict[(u,v)] = amount+fee
-    
+    if u not in iamt:
+        iamt[u] = amount+fee
+    else:
+        if iamt[u] > (amount+fee):
+            iamt[u] = amount+fee
+        else:
+            iamt[u] = iamt[u]
+            
 def compute_fee(v,u,d):
-    global connected_nodes, fee_dict, amt_dict, visited, cache_node, prev_node
-    if v not in connected_nodes:
-        connected_nodes[v] = []
+    global fee_dict, amt_dict, visited, cache_node, prev_node
     if v == target:
         cache_node = v
-        amount = amt
-        sub_func(u,v,amount)
+        iamt[v] = amt
+        sub_func(u,v,amt)
     else:
         if cache_node != v:
             visited.append(cache_node)
             cache_node = v
-            found_prev_node = False
-            i = 0
-            while not(found_prev_node):
-                prev_node = visited[i]
-                if v in connected_nodes[prev_node]:
-                    found_prev_node = True
-                else:
-                    i += 1
-                    found_prev_node = False
-            # connected_nodes[prev_node].remove(v)
-        amount = amt_dict[(v, prev_node)]
-        sub_func(u,v, amount)
+        sub_func(u,v, iamt[v])
 
             
 #v - target, u - source, d - G.edges[v,u]
@@ -139,33 +133,38 @@ def release_locked(j, path):
 
 def route(G, path, source, target):
     try:
-        path = path[::-1]
         amt_list = []
         total_fee = 0
         for i in range(len(path)-1):
-            u = path[i]
-            v = path[i+1]
-            amt_list.append(amt_dict[(u,v)])
-            total_fee += fee_dict[(u,v)]
-        amt_list.append(amt)
+            v = path[i]
+            u = path[i+1]
+            if v == target:
+                amt_list.append(amt)
+            fee = G.edges[u,v]["BaseFee"] + amt_list[-1]*G.edges[u,v]["FeeRate"]
+            amount = fee + amt_list[-1]
+            amt_list.append(amount)
+            total_fee +=  fee_dict[(u,v)]
+            
+        print(amt_list)
+        print("Total fee is ", total_fee)
+        path = path[::-1]
+        amt_list = amt_list[::-1]
         amount = amt_list[0]
-        curr_amt = amt_list[1]
         for i in range(len(path)-1):
             u = path[i]
             v = path[i+1]
-            curr_amt = amt_list[i+1]
-            print(1, fee_dict[(u,v)], amt_list[i])
-            fee = G.edges[u,v]["BaseFee"] + curr_amt*G.edges[u,v]["FeeRate"]
+            fee = G.edges[u,v]["BaseFee"] + amt_list[i+1]*G.edges[u,v]["FeeRate"]
             if amount > G.edges[u,v]["Balance"] or amount<=0:
                 G.edges[u,v]["LastFailure"] = 0
                 j = i-1
                 release_locked(j, path)
-                return "Routing failed"
+                return f"Routing failed due to low balance in edge {u},{v}"
             else:
                 G.edges[u,v]["Balance"] -= amount
                 G.edges[u,v]["Locked"] = amount  
                 G.edges[u,v]["LastFailure"] = 25
             amount = amount - fee
+            print(amount, fee)
             if v == target and amount!=amt:
                 print("Amount is", amount)
                 return "Routing Failed"
@@ -222,12 +221,16 @@ for i in range(1):
     print("\nSource = ",source, "Target = ", target)
     print("----------------------------------------------")
     for name in algo:
-        global connected_nodes, fee_dict, amt_dict, visited, cache_node, prev_node
+        global connected_nodes, fee_dict, amt_dict, visited, cache_node
+        global prev_dict, prev_node, prev_cache, iamt
         connected_nodes = {}
         fee_dict = {}
         amt_dict = {}
         visited = []
         cache_node = target
+        prev_cache = target
         prev_node = target
+        iamt = {}
+        prev_dict = {}
         helper(name, algo[name])
     
