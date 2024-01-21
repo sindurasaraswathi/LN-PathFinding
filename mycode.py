@@ -64,7 +64,7 @@ def sub_func(u,v, amount):
             
 def compute_fee(v,u,d):
     global fee_dict, amt_dict, visited, cache_node, prev_node
-    if v == target:
+    if v == target or v not in iamt:
         cache_node = v
         iamt[v] = amt
         sub_func(u,v,amt)
@@ -143,8 +143,7 @@ def route(G, path, source, target):
             fee = G.edges[u,v]["BaseFee"] + amt_list[-1]*G.edges[u,v]["FeeRate"]
             amount = fee + amt_list[-1]
             amt_list.append(amount)
-            total_fee +=  fee_dict[(u,v)]
-            
+            total_fee +=  fee_dict[(u,v)] 
         print(amt_list)
         print("Total fee is ", total_fee)
         path = path[::-1]
@@ -164,7 +163,6 @@ def route(G, path, source, target):
                 G.edges[u,v]["Locked"] = amount  
                 G.edges[u,v]["LastFailure"] = 25
             amount = amount - fee
-            print(amount, fee)
             if v == target and amount!=amt:
                 print("Amount is", amount)
                 return "Routing Failed"
@@ -203,14 +201,14 @@ def helper(name, func):
             print(res[::-1])
             print(route(G, res, source, target))
         else:
-            res = list(islice(nx.shortest_simple_paths(G, target, source, func), 2))
-            print(res[::-1])
+            res = list(islice(nx.shortest_simple_paths(G, target, source, func), 5))
             for path in res:
+                print(path[::-1])
                 print(route(G, path, source, target))
     except Exception as e:
         print(e)
         
-algo = {'LND':lnd_cost, 'CLN':cln_cost, 'LDK':ldk_cost}      
+algo = {'LND':lnd_cost, 'CLN':cln_cost, 'LDK':ldk_cost, 'Eclair':eclair_cost}      
 # algo = {'LND':lnd_cost}
 for i in range(1): 
     source = -1
