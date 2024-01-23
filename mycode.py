@@ -10,6 +10,7 @@ import random as rn
 from itertools import islice
 import pandas as pd
 import re
+import networkx.algorithms.shortest_paths.weighted as nx2
 
 def make_graph(G):
     df = pd.read_csv('LN_snapshot.csv')
@@ -50,30 +51,25 @@ G = make_graph(G)
 #-----------------------------------------------------------------------------
 
 def sub_func(u,v, amount):
-    global amt_dict, fee_dict, prev_node, prev_dict, iamt, visited
+    global amt_dict, fee_dict
     fee = G.edges[u,v]["BaseFee"] + amount*G.edges[u,v]["FeeRate"]
     fee_dict[(u,v)] = fee
     amt_dict[(u,v)] = amount+fee
-    if u not in iamt:
-        iamt[u] = amount+fee
-    else:
-        if iamt[u] > (amount+fee):
-            iamt[u] = amount+fee
-        else:
-            iamt[u] = iamt[u]
+ 
             
 def compute_fee(v,u,d):
-    global fee_dict, amt_dict, visited, cache_node, prev_node
-    if v == target or v not in iamt:
+    # print("here", v,u, prev_dict)
+    global fee_dict, amt_dict, visited, cache_node
+    if v == target:
         cache_node = v
-        iamt[v] = amt
         sub_func(u,v,amt)
     else:
         if cache_node != v:
             visited.append(cache_node)
             cache_node = v
-        sub_func(u,v, iamt[v])
-
+        amount = amt_dict[(v, prev_dict[v][0])]        
+        sub_func(u,v, amount)
+        
             
 #v - target, u - source, d - G.edges[v,u]
 def lnd_cost(v,u,d):
@@ -140,11 +136,9 @@ def route(G, path, source, target):
             u = path[i+1]
             if v == target:
                 amt_list.append(amt)
-            fee = G.edges[u,v]["BaseFee"] + amt_list[-1]*G.edges[u,v]["FeeRate"]
-            amount = fee + amt_list[-1]
-            amt_list.append(amount)
+            amt_list.append(amt_dict[(u,v)])
             total_fee +=  fee_dict[(u,v)] 
-        print(amt_list)
+        print("Amount list", amt_list[::-1])
         print("Total fee is ", total_fee)
         path = path[::-1]
         amt_list = amt_list[::-1]
@@ -168,7 +162,7 @@ def route(G, path, source, target):
                 return "Routing Failed"
             
         release_locked(i-1, path)
-        return f"Routing Successful with total path fee = {total_fee}"
+        return f"Routing Successful with total fee = {total_fee}"
     except Exception as e:
         print(e)
         return "Routing Failed due to the above error"
@@ -197,8 +191,9 @@ def helper(name, func):
     try:
         print("**",name,"**")
         if name != 'Eclair':
-            res = nx.dijkstra_path(G, target, source, func)
-            print(res[::-1])
+            dist = nx2._dijkstra(G, source=target, target=source, weight = func, pred=prev_dict, paths=paths)
+            res = paths[source]
+            print("Path found by", name, res[::-1])
             print(route(G, res, source, target))
         else:
             res = list(islice(nx.shortest_simple_paths(G, target, source, func), 5))
@@ -208,8 +203,10 @@ def helper(name, func):
     except Exception as e:
         print(e)
         
-algo = {'LND':lnd_cost, 'CLN':cln_cost, 'LDK':ldk_cost, 'Eclair':eclair_cost}      
+algo = {'LND':lnd_cost, 'CLN':cln_cost, 'LDK':ldk_cost, 'Eclair': eclair_cost}      
 # algo = {'LND':lnd_cost}
+# source = 5
+# target = 1995
 for i in range(1): 
     source = -1
     target = -1
@@ -219,16 +216,13 @@ for i in range(1):
     print("\nSource = ",source, "Target = ", target)
     print("----------------------------------------------")
     for name in algo:
-        global connected_nodes, fee_dict, amt_dict, visited, cache_node
-        global prev_dict, prev_node, prev_cache, iamt
-        connected_nodes = {}
+        global fee_dict, amt_dict, visited, cache_node
+        global prev_dict, paths
         fee_dict = {}
         amt_dict = {}
         visited = []
         cache_node = target
-        prev_cache = target
-        prev_node = target
-        iamt = {}
         prev_dict = {}
+        paths = {target:[target]}
         helper(name, algo[name])
     
