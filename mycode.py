@@ -138,10 +138,10 @@ def route(G, path, source, target):
                 amt_list.append(amt)
             amt_list.append(amt_dict[(u,v)])
             total_fee +=  fee_dict[(u,v)] 
-        print("Amount list", amt_list[::-1])
-        print("Total fee is ", total_fee)
         path = path[::-1]
         amt_list = amt_list[::-1]
+        print("Amount list", amt_list)
+        print("Total fee is ", total_fee)
         amount = amt_list[0]
         for i in range(len(path)-1):
             u = path[i]
