@@ -11,6 +11,127 @@ from itertools import islice
 import pandas as pd
 import re
 import networkx.algorithms.shortest_paths.weighted as nx2
+from heapq import heappop, heappush
+from itertools import count
+from networkx.algorithms.shortest_paths.weighted import _weight_function
+
+def shortest_simple_paths(G, source, target, weight=None):
+    global prev_dict, paths, amt_tracker, amt_dict, fee_dict
+    if source not in G:
+        raise nx.NodeNotFound(f"source node {source} not in graph")
+
+    if target not in G:
+        raise nx.NodeNotFound(f"target node {target} not in graph")
+
+    wt = _weight_function(G, weight)
+
+    def length_func(path):
+        return sum(
+            wt(u, v, G.get_edge_data(u, v)) for (u, v) in zip(path, path[1:])
+        )
+
+    shortest_path_func = nx2._dijkstra
+    
+    listA = []
+    listB = PathBuffer()
+    prev_path = None
+    while True:
+        if not prev_path:
+            prev_dict = {}
+            paths = {source:[source]}
+            dist = shortest_path_func(G, source=source, 
+                                      target=target, 
+                                      weight=weight, 
+                                      pred=prev_dict, 
+                                      paths=paths)
+            path = paths[target]
+            print(path)
+            amt_tracker = {}
+            # for i in range(len(path)-1):
+            #     amt_tracker[(path[i+1], path[i])] = amt_dict[(path[i+1],path[i])]
+            # print(amt_tracker)
+            length = dist[target]
+            listB.push(length, path)
+        else:
+            global root,ignore_edges, H
+            ignore_nodes = set()
+            ignore_edges = set()
+            for i in range(1, len(prev_path)):
+                root = prev_path[:i]
+                root_length = length_func(root)
+                print("Root",root)
+                fee_dict = {}
+                prev_dict = {}
+                if root[-1] != source:
+                    # amt_dict[root[-1], root[-2]] = amt_tracker[root[-1], root[-2]]
+                    temp_amt = amt_dict[root[-1], root[-2]]
+                    amt_dict = {}
+                    amt_dict[root[-1], root[-2]] = temp_amt
+                    prev_dict = {root[-1]:[root[-2]]}
+                    print(amt_dict)
+                    print(prev_dict)
+                else:
+                    amt_dict = {}
+                
+                for path in listA:
+                    if path[:i] == root:
+                        ignore_edges.add((path[i - 1], path[i]))
+                try:
+                    
+                    H = G.copy()
+                    H.remove_edges_from(ignore_edges)
+                    paths = {root[-1]:[root[-1]]}
+                    print("here")
+                    dist = shortest_path_func(
+                        H,
+                        source=root[-1],
+                        target=target,
+                        weight=weight,
+                        pred = prev_dict,
+                        paths = paths
+                        
+                    )
+                    path = root[:-1] + paths[target]
+                    print(path)
+                    length = dist[target]
+                    listB.push(root_length + length, path)
+                except nx.NetworkXNoPath:
+                    pass
+                ignore_nodes.add(root[-1])
+
+        if listB:
+            path = listB.pop()
+            yield path
+            listA.append(path)
+            prev_path = path
+            
+        else:
+            break
+
+class PathBuffer:
+    def __init__(self):
+        self.paths = set()
+        self.sortedpaths = []
+        self.counter = count()
+
+    def __len__(self):
+        return len(self.sortedpaths)
+
+    def push(self, cost, path):
+        hashable_path = tuple(path)
+        if hashable_path not in self.paths:
+            heappush(self.sortedpaths, (cost, next(self.counter), path))
+            self.paths.add(hashable_path)
+
+    def pop(self):
+        (cost, num, path) = heappop(self.sortedpaths)
+        hashable_path = tuple(path)
+        self.paths.remove(hashable_path)
+        return path
+    
+
+   
+
 
 def make_graph(G):
     df = pd.read_csv('LN_snapshot.csv')
@@ -55,8 +176,7 @@ def sub_func(u,v, amount):
     fee = G.edges[u,v]["BaseFee"] + amount*G.edges[u,v]["FeeRate"]
     fee_dict[(u,v)] = fee
     amt_dict[(u,v)] = amount+fee
- 
-            
+       
 def compute_fee(v,u,d):
     global fee_dict, amt_dict, cache_node
     if v == target:
@@ -65,34 +185,10 @@ def compute_fee(v,u,d):
     else:
         if cache_node != v:
             cache_node = v
-        amount = amt_dict[(v, prev_dict[v][0])]        
+        amount = amt_dict[(v, prev_dict[v][0])] 
         sub_func(u,v, amount)
         
             
-#v - target, u - source, d - G.edges[v,u]
-def lnd_cost(v,u,d):
-    global timepref
-    rf = 15*10**-9
-    compute_fee(v,u,d)        
-    timepref *= 0.9
-    defaultattemptcost = attemptcost+attemptcostppm*amt_dict[(u,v)]/1000000
-    penalty = defaultattemptcost * (1/(0.5-timepref/2) - 1)
-    prob_weight = 2**d["LastFailure"]
-    prob = apriori * (1-1/prob_weight)
-    if prob == 0:
-        cost = float('inf')
-    else:
-        cost = fee_dict[(u,v)] + d['Delay']*amt_dict[(u,v)]*rf + penalty/prob
-    return cost
-        
-
-def cln_cost(v,u,d):
-    rf = 10
-    compute_fee(v,u,d)
-    cost = amt_dict[(u,v)]*(1+(rf*d["Delay"])/(blk_per_year*100))+1
-    return cost
-
-
 def normalize(value, minm, maxm):
     norm = 0.00001 + 0.99998 * (min(max(minm,value), maxm))/(maxm - minm)
     return norm
@@ -107,13 +203,6 @@ def eclair_cost(v,u,d):
                           (nage*agefactor)+(ncap*capfactor))
     return cost
 
-
-def ldk_cost(v,u,d):
-    htlc_minimum = d['htlc_min']
-    compute_fee(v,u,d)
-    penalty = 500 + (8192*amt_dict[(u,v)])/2**30
-    cost = max(fee_dict[(u,v)], htlc_minimum) + penalty
-    return cost
 
 
 def release_locked(j, path):
@@ -194,23 +283,22 @@ def helper(name, func):
             print("Path found by", name, res[::-1])
             print(route(G, res, source, target))
         else:
-            res = list(islice(nx.shortest_simple_paths(G, target, source, func), 5))
+            res = list(islice(shortest_simple_paths(G, source=target, target=source, weight=func), 2))
             for path in res:
                 print(path[::-1])
                 print(route(G, path, source, target))
     except Exception as e:
         print(e)
-        
-algo = {'LND':lnd_cost, 'CLN':cln_cost, 'LDK':ldk_cost}      
-# algo = {'Eclair':eclair_cost}
-#source = 5
-#target = 1995
+             
+algo = {'Eclair':eclair_cost}
+source = 5
+target = 1995
 for i in range(1): 
-    source = -1
-    target = -1
-    while (target == source or (source not in G.nodes()) or (target not in G.nodes())):
-        target = rn.randint(0, 13129)
-        source = rn.randint(0, 13129)
+    # source = -1
+    # target = -1
+    # while (target == source or (source not in G.nodes()) or (target not in G.nodes())):
+    #     target = rn.randint(0, 13129)
+    #     source = rn.randint(0, 13129)
     print("\nSource = ",source, "Target = ", target)
     print("----------------------------------------------")
     for name in algo:
@@ -219,7 +307,5 @@ for i in range(1):
         fee_dict = {}
         amt_dict = {}
         cache_node = target
-        prev_dict = {}
-        paths = {target:[target]}
         helper(name, algo[name])
     
