@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Nov  7 11:08:01 2023
-
-@author: sindu
-"""
-
 import networkx as nx
 import random as rn
 from itertools import islice
@@ -15,8 +8,26 @@ from heapq import heappop, heappush
 from itertools import count
 from networkx.algorithms.shortest_paths.weighted import _weight_function
 
+def tracker(path, dist, p_amt, p_dist):
+    global amt_dict
+    amt_tracker = {}
+    dist_tracker = {}
+    for i in range(len(path)-1):
+        u = path[i+1]
+        v = path[i]
+        if (u,v) in amt_dict:
+            amt_tracker[(u,v)] = amt_dict[(u,v)]
+        else:
+            amt_tracker[(u,v)] = p_amt[(u,v)]
+        if v in dist:
+            dist_tracker[v] = dist[v]
+        else:
+            dist_tracker[v] = p_dist[v]
+    dist_tracker[u] = dist[u]
+    return amt_tracker, dist_tracker
+
 def shortest_simple_paths(G, source, target, weight=None):
-    global prev_dict, paths, amt_tracker, amt_dict, fee_dict
+    global prev_dict, paths, amt_dict, fee_dict
     if source not in G:
         raise nx.NodeNotFound(f"source node {source} not in graph")
 
@@ -25,63 +36,58 @@ def shortest_simple_paths(G, source, target, weight=None):
 
     wt = _weight_function(G, weight)
 
-    def length_func(path):
-        return sum(
-            wt(u, v, G.get_edge_data(u, v)) for (u, v) in zip(path, path[1:])
-        )
-
     shortest_path_func = nx2._dijkstra
-    
     listA = []
     listB = PathBuffer()
+    amt_holder = PathBuffer()
+    dist_holder = PathBuffer()
     prev_path = None
+    prev_dist = None
+    prev_amt = None
+    
     while True:
         if not prev_path:
+            
             prev_dict = {}
             paths = {source:[source]}
+            
             dist = shortest_path_func(G, source=source, 
                                       target=target, 
                                       weight=weight, 
                                       pred=prev_dict, 
                                       paths=paths)
+            print("here")
             path = paths[target]
-            print(path)
-            amt_tracker = {}
-            # for i in range(len(path)-1):
-            #     amt_tracker[(path[i+1], path[i])] = amt_dict[(path[i+1],path[i])]
-            # print(amt_tracker)
-            length = dist[target]
+            
+            amt_tracker, dist_tracker = tracker(path, dist, prev_amt, prev_dist)
+            length = dist_tracker[target]
             listB.push(length, path)
+            amt_holder.push(length, amt_tracker)
+            dist_holder.push(length, dist_tracker)
+            
         else:
-            global root,ignore_edges, H
+            # global root,ignore_edges, H
             ignore_nodes = set()
             ignore_edges = set()
             for i in range(1, len(prev_path)):
                 root = prev_path[:i]
-                root_length = length_func(root)
-                print("Root",root)
+                root_length = prev_dist[root[-1]]        
+                amt_dict = {}
                 fee_dict = {}
                 prev_dict = {}
                 if root[-1] != source:
-                    # amt_dict[root[-1], root[-2]] = amt_tracker[root[-1], root[-2]]
-                    temp_amt = amt_dict[root[-1], root[-2]]
-                    amt_dict = {}
+                    temp_amt = prev_amt[(root[-1], root[-2])]
                     amt_dict[root[-1], root[-2]] = temp_amt
                     prev_dict = {root[-1]:[root[-2]]}
-                    print(amt_dict)
-                    print(prev_dict)
-                else:
-                    amt_dict = {}
-                
+                    
                 for path in listA:
                     if path[:i] == root:
                         ignore_edges.add((path[i - 1], path[i]))
                 try:
-                    
                     H = G.copy()
                     H.remove_edges_from(ignore_edges)
+                    H.remove_nodes_from(ignore_nodes)
                     paths = {root[-1]:[root[-1]]}
-                    print("here")
                     dist = shortest_path_func(
                         H,
                         source=root[-1],
@@ -91,10 +97,15 @@ def shortest_simple_paths(G, source, target, weight=None):
                         paths = paths
                         
                     )
-                    path = root[:-1] + paths[target]
-                    print(path)
-                    length = dist[target]
-                    listB.push(root_length + length, path)
+                    try:
+                        path = root[:-1] + paths[target]
+                        amt_tracker, dist_tracker = tracker(path, dist, prev_amt, prev_dist)
+                        length = dist[target]
+                        listB.push(root_length + length, path)
+                        amt_holder.push(root_length + length, amt_tracker)
+                        dist_holder.push(root_length + length, dist_tracker)
+                    except:
+                        pass
                 except nx.NetworkXNoPath:
                     pass
                 ignore_nodes.add(root[-1])
@@ -104,6 +115,8 @@ def shortest_simple_paths(G, source, target, weight=None):
             yield path
             listA.append(path)
             prev_path = path
+            prev_amt = amt_holder.pop()
+            prev_dist = dist_holder.pop()
             
         else:
             break
@@ -174,6 +187,7 @@ G = make_graph(G)
 def sub_func(u,v, amount):
     global amt_dict, fee_dict
     fee = G.edges[u,v]["BaseFee"] + amount*G.edges[u,v]["FeeRate"]
+    
     fee_dict[(u,v)] = fee
     amt_dict[(u,v)] = amount+fee
        
@@ -223,8 +237,9 @@ def route(G, path, source, target):
             u = path[i+1]
             if v == target:
                 amt_list.append(amt)
-            amt_list.append(amt_dict[(u,v)])
-            total_fee +=  fee_dict[(u,v)] 
+            fee = G.edges[u,v]["BaseFee"] + amt_list[-1]*G.edges[u,v]["FeeRate"]
+            amt_list.append(amt_list[-1] + fee)
+            total_fee +=  fee
         path = path[::-1]
         amt_list = amt_list[::-1]
         print("Amount list", amt_list)
@@ -283,22 +298,21 @@ def helper(name, func):
             print("Path found by", name, res[::-1])
             print(route(G, res, source, target))
         else:
-            res = list(islice(shortest_simple_paths(G, source=target, target=source, weight=func), 2))
+            res = list(islice(shortest_simple_paths(G, source=target, target=source, weight=func), 4))
             for path in res:
-                print(path[::-1])
+                print("Path found by", name, path[::-1])
                 print(route(G, path, source, target))
     except Exception as e:
         print(e)
              
 algo = {'Eclair':eclair_cost}
-source = 5
-target = 1995
+
 for i in range(1): 
-    # source = -1
-    # target = -1
-    # while (target == source or (source not in G.nodes()) or (target not in G.nodes())):
-    #     target = rn.randint(0, 13129)
-    #     source = rn.randint(0, 13129)
+    source = -1
+    target = -1
+    while (target == source or (source not in G.nodes()) or (target not in G.nodes())):
+        target = rn.randint(0, 13129)
+        source = rn.randint(0, 13129)
     print("\nSource = ",source, "Target = ", target)
     print("----------------------------------------------")
     for name in algo:

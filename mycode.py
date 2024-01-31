@@ -203,8 +203,6 @@ def helper(name, func):
         
 algo = {'LND':lnd_cost, 'CLN':cln_cost, 'LDK':ldk_cost}      
 # algo = {'Eclair':eclair_cost}
-#source = 5
-#target = 1995
 for i in range(1): 
     source = -1
     target = -1
