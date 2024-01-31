@@ -27,7 +27,7 @@ def tracker(path, dist, p_amt, p_dist):
     return amt_tracker, dist_tracker
 
 def shortest_simple_paths(G, source, target, weight=None):
-    global prev_dict, paths, amt_dict, fee_dict
+    global prev_dict, paths, amt_dict, fee_dict, visited
     if source not in G:
         raise nx.NodeNotFound(f"source node {source} not in graph")
 
@@ -44,7 +44,7 @@ def shortest_simple_paths(G, source, target, weight=None):
     prev_path = None
     prev_dist = None
     prev_amt = None
-    
+    visited = set()
     while True:
         if not prev_path:
             
@@ -56,9 +56,8 @@ def shortest_simple_paths(G, source, target, weight=None):
                                       weight=weight, 
                                       pred=prev_dict, 
                                       paths=paths)
-            print("here")
             path = paths[target]
-            
+            visited = set()
             amt_tracker, dist_tracker = tracker(path, dist, prev_amt, prev_dist)
             length = dist_tracker[target]
             listB.push(length, path)
@@ -69,8 +68,10 @@ def shortest_simple_paths(G, source, target, weight=None):
             # global root,ignore_edges, H
             ignore_nodes = set()
             ignore_edges = set()
+            
             for i in range(1, len(prev_path)):
                 root = prev_path[:i]
+                visited = set(root.copy())
                 root_length = prev_dist[root[-1]]        
                 amt_dict = {}
                 fee_dict = {}
@@ -106,6 +107,7 @@ def shortest_simple_paths(G, source, target, weight=None):
                         dist_holder.push(root_length + length, dist_tracker)
                     except:
                         pass
+                    
                 except nx.NetworkXNoPath:
                     pass
                 ignore_nodes.add(root[-1])
@@ -142,9 +144,6 @@ class PathBuffer:
         self.paths.remove(hashable_path)
         return path
     
-
-   
-
 
 def make_graph(G):
     df = pd.read_csv('LN_snapshot.csv')
@@ -186,18 +185,18 @@ G = make_graph(G)
 
 def sub_func(u,v, amount):
     global amt_dict, fee_dict
-    fee = G.edges[u,v]["BaseFee"] + amount*G.edges[u,v]["FeeRate"]
-    
+    fee = G.edges[u,v]["BaseFee"] + amount*G.edges[u,v]["FeeRate"] 
     fee_dict[(u,v)] = fee
     amt_dict[(u,v)] = amount+fee
        
 def compute_fee(v,u,d):
-    global fee_dict, amt_dict, cache_node
+    global fee_dict, amt_dict, cache_node, visited
     if v == target:
         cache_node = v
         sub_func(u,v,amt)
     else:
         if cache_node != v:
+            visited.add(cache_node)
             cache_node = v
         amount = amt_dict[(v, prev_dict[v][0])] 
         sub_func(u,v, amount)
@@ -209,6 +208,9 @@ def normalize(value, minm, maxm):
 
 
 def eclair_cost(v,u,d):
+    global visited
+    if u in visited:
+        return float('inf')
     compute_fee(v,u,d)
     ncap = 1-normalize(d["capacity"], min_cap, max_cap)
     nage = normalize(d["Age"], d["Age"]-365*24*6, cbr)
@@ -306,13 +308,14 @@ def helper(name, func):
         print(e)
              
 algo = {'Eclair':eclair_cost}
-
+source = 9093
+target = 7224
 for i in range(1): 
-    source = -1
-    target = -1
-    while (target == source or (source not in G.nodes()) or (target not in G.nodes())):
-        target = rn.randint(0, 13129)
-        source = rn.randint(0, 13129)
+    # source = -1
+    # target = -1
+    # while (target == source or (source not in G.nodes()) or (target not in G.nodes())):
+    #     target = rn.randint(0, 13129)
+    #     source = rn.randint(0, 13129)
     print("\nSource = ",source, "Target = ", target)
     print("----------------------------------------------")
     for name in algo:
