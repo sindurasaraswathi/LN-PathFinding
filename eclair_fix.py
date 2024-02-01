@@ -47,7 +47,6 @@ def shortest_simple_paths(G, source, target, weight=None):
     visited = set()
     while True:
         if not prev_path:
-            
             prev_dict = {}
             paths = {source:[source]}
             
@@ -79,8 +78,7 @@ def shortest_simple_paths(G, source, target, weight=None):
                 if root[-1] != source:
                     temp_amt = prev_amt[(root[-1], root[-2])]
                     amt_dict[root[-1], root[-2]] = temp_amt
-                    prev_dict = {root[-1]:[root[-2]]}
-                    
+                    prev_dict[root[-1]] = [root[-2]]               
                 for path in listA:
                     if path[:i] == root:
                         ignore_edges.add((path[i - 1], path[i]))
@@ -105,10 +103,12 @@ def shortest_simple_paths(G, source, target, weight=None):
                         listB.push(root_length + length, path)
                         amt_holder.push(root_length + length, amt_tracker)
                         dist_holder.push(root_length + length, dist_tracker)
+                        
                     except:
                         pass
+                        
                     
-                except nx.NetworkXNoPath:
+                except:
                     pass
                 ignore_nodes.add(root[-1])
 
@@ -189,7 +189,9 @@ def sub_func(u,v, amount):
     fee_dict[(u,v)] = fee
     amt_dict[(u,v)] = amount+fee
        
+        
 def compute_fee(v,u,d):
+
     global fee_dict, amt_dict, cache_node, visited
     if v == target:
         cache_node = v
@@ -300,7 +302,9 @@ def helper(name, func):
             print("Path found by", name, res[::-1])
             print(route(G, res, source, target))
         else:
-            res = list(islice(shortest_simple_paths(G, source=target, target=source, weight=func), 4))
+            res = list(islice(shortest_simple_paths(G, source=target, target=source, weight=func), 3))
+            # print(len(res1))
+            # res = list(res1, 1)
             for path in res:
                 print("Path found by", name, path[::-1])
                 print(route(G, path, source, target))
@@ -308,14 +312,12 @@ def helper(name, func):
         print(e)
              
 algo = {'Eclair':eclair_cost}
-source = 9093
-target = 7224
 for i in range(1): 
-    # source = -1
-    # target = -1
-    # while (target == source or (source not in G.nodes()) or (target not in G.nodes())):
-    #     target = rn.randint(0, 13129)
-    #     source = rn.randint(0, 13129)
+    source = -1
+    target = -1
+    while (target == source or (source not in G.nodes()) or (target not in G.nodes())):
+        target = rn.randint(0, 13129)
+        source = rn.randint(0, 13129)
     print("\nSource = ",source, "Target = ", target)
     print("----------------------------------------------")
     for name in algo:

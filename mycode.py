@@ -119,7 +119,7 @@ def shortest_simple_paths(G, source, target, weight):
                         dist_holder.push(root_length + length, dist_tracker)
                     except:
                         pass
-                except nx.NetworkXNoPath:
+                except:
                     pass
                 ignore_nodes.add(root[-1])
 
@@ -214,7 +214,7 @@ def compute_fee(v,u,d):
             visited.add(cache_node)
             cache_node = v          
         amount = amt_dict[(v, prev_dict[v][0])] 
-        sub_func(u,v, amount)
+        sub_func(u,v,amount)
         
             
 #v - target, u - source, d - G.edges[v,u]
