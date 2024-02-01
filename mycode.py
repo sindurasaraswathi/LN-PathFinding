@@ -14,12 +14,13 @@ import networkx.algorithms.shortest_paths.weighted as nx2
 from heapq import heappop, heappush
 from itertools import count
 from networkx.algorithms.shortest_paths.weighted import _weight_function
+import math
 
-
-def tracker(path, dist, p_amt, p_dist):
-    global amt_dict
+def tracker(path, dist, p_amt, p_dist, p_prob):
+    global amt_dict, prob_eclair
     amt_tracker = {}
     dist_tracker = {}
+    prob_tracker = {}
     for i in range(len(path)-1):
         u = path[i+1]
         v = path[i]
@@ -31,12 +32,17 @@ def tracker(path, dist, p_amt, p_dist):
             dist_tracker[v] = dist[v]
         else:
             dist_tracker[v] = p_dist[v]
+        if (u,v) in prob_eclair:
+            prob_tracker[(u,v)] = prob_eclair[(u,v)]
+        else:#
+            prob_tracker[(u,v)] = p_prob[(u,v)]
+
     dist_tracker[u] = dist[u]
-    return amt_tracker, dist_tracker
+    return amt_tracker, dist_tracker, prob_tracker
 
 
 def shortest_simple_paths(G, source, target, weight):
-    global prev_dict, paths, amt_dict, fee_dict, visited
+    global prev_dict, paths, amt_dict, fee_dict, visited, prob_eclair
     if source not in G:
         raise nx.NodeNotFound(f"source node {source} not in graph")
 
@@ -45,24 +51,22 @@ def shortest_simple_paths(G, source, target, weight):
 
     wt = _weight_function(G, weight)
 
-    def length_func(path):
-        return sum(
-            wt(u, v, G.get_edge_data(u, v)) for (u, v) in zip(path, path[1:])
-        )
-
     shortest_path_func = nx2._dijkstra
     
     listA = []
     listB = PathBuffer()
     amt_holder = PathBuffer()
     dist_holder = PathBuffer()
+    prob_holder = PathBuffer()
     prev_path = None
     prev_dist = None
     prev_amt = None
+    prev_prob = None
     visited = set()
     while True:
         if not prev_path:
             prev_dict = {}
+            prob_eclair = {} #
             paths = {source:[source]}
             dist = nx2._dijkstra(G, source=source, 
                                       target=target, 
@@ -71,12 +75,12 @@ def shortest_simple_paths(G, source, target, weight):
                                       paths=paths)
             path = paths[target]
             visited = set()
-            amt_tracker, dist_tracker = tracker(path, dist, prev_amt, prev_dist)
+            amt_tracker, dist_tracker, prob_tracker = tracker(path, dist, prev_amt, prev_dist, prev_prob)#
             length = dist_tracker[target]
             listB.push(length, path)
             amt_holder.push(length, amt_tracker)
             dist_holder.push(length, dist_tracker)
-            
+            prob_holder.push(length, prob_tracker)
         else:
             # global root,ignore_edges, H
             ignore_nodes = set()
@@ -88,11 +92,12 @@ def shortest_simple_paths(G, source, target, weight):
                 amt_dict = {}
                 fee_dict = {}
                 prev_dict = {}
+                prob_eclair = {}
                 if root[-1] != source:
                     temp_amt = prev_amt[(root[-1], root[-2])]
                     amt_dict[root[-1], root[-2]] = temp_amt
                     prev_dict = {root[-1]:[root[-2]]}
-                    
+                    prob_eclair[(root[-1], root[-2])] = prev_prob[(root[-1], root[-2])]
                 for path in listA:
                     if path[:i] == root:
                         ignore_edges.add((path[i - 1], path[i]))
@@ -112,11 +117,12 @@ def shortest_simple_paths(G, source, target, weight):
                     )
                     try:
                         path = root[:-1] + paths[target]
-                        amt_tracker, dist_tracker = tracker(path, dist, prev_amt, prev_dist)
+                        amt_tracker, dist_tracker, prob_tracker = tracker(path, dist, prev_amt, prev_dist, prev_prob)#
                         length = dist[target]
                         listB.push(root_length + length, path)
                         amt_holder.push(root_length + length, amt_tracker)
                         dist_holder.push(root_length + length, dist_tracker)
+                        prob_holder.push(root_length + length, prob_tracker)
                     except:
                         pass
                 except:
@@ -130,7 +136,7 @@ def shortest_simple_paths(G, source, target, weight):
             prev_path = path
             prev_amt = amt_holder.pop()
             prev_dist = dist_holder.pop()
-            
+            prev_prob = prob_holder.pop()
         else:
             break
 
@@ -254,8 +260,42 @@ def eclair_cost(v,u,d):
     ncap = 1-normalize(d["capacity"], min_cap, max_cap)
     nage = normalize(d["Age"], d["Age"]-365*24*6, cbr)
     ncltv = normalize(d["Delay"], min_cltv, max_cltv)
-    cost = (fee_dict[(u,v)]+hopcost)*(basefactor + (ncltv*cltvfactor)+
+    if v == target:
+        hop_amt = amt
+    else:
+        hop_amt = amt_dict[(v, prev_dict[v][0])]
+    hopcost =  hop_base + hop_amt * hop_rate
+    #Success Probability
+    prob = 1 - (hop_amt/d["capacity"])
+    if v == target:
+        total_prob = prob
+    else:
+        total_prob = prob * prob_eclair[(v, prev_dict[v][0])]
+    prob_eclair[(u,v)] = total_prob
+    #fee
+    total_fee = amt_dict[(u,v)] - amt
+    #total CLTV
+    total_cltv = d["Delay"]
+    temp_path = paths[v]
+    for i in range(1,len(temp_path)-1):
+        p = temp_path[i+1]
+        q = temp_path[i]
+        total_cltv += G.edges[(p,q)]["Delay"]
+    #total Amount
+    total_amount = amt_dict[(u,v)]
+    #risk cost
+    risk_cost = total_amount * d["Delay"] * locked_funds_risk
+    total_risk_cost = total_amount * total_cltv * locked_funds_risk
+    #failure cost
+    failure_cost = fail_base + total_amount * fail_rate
+    if case == 'WeightRatios':
+        cost = (fee_dict[(u,v)]+hopcost)*(basefactor + (ncltv*cltvfactor)+
                           (nage*agefactor)+(ncap*capfactor))
+    else:
+        if use_log:
+            cost = fee_dict[(u,v)] + hopcost + risk_cost - failure_cost * math.log(prob)
+        else: 
+            cost = total_fee + hopcost + total_risk_cost + failure_cost/total_prob
     return cost
 
 
@@ -333,8 +373,15 @@ agefactor = 0.35
 basefactor = 0
 capfactor = 0.5
 cltvfactor = 0.15
-hopcost = 0 #relay fees
-        
+hop_base = 0 #relay fees#
+hop_rate = 0#
+fail_base = 2000#
+fail_rate = 500#
+locked_funds_risk = 1e-8#
+use_log = False #
+case = 'WeightRatios'
+# case = 'Heuristics'
+
 #----------------------------------------------
 def helper(name, func):
     try:
