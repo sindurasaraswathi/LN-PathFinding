@@ -15,6 +15,78 @@ from heapq import heappop, heappush
 from itertools import count
 from networkx.algorithms.shortest_paths.weighted import _weight_function
 import math
+import configparser
+import csv
+
+config = configparser.ConfigParser()
+config.read('config.ini')
+
+
+        
+#--------------------------------------------
+global use_log, case
+epoch = int(config['General']['iterations'])
+attemptcost = float(config['LND']['attemptcost'])
+attemptcostppm = float(config['LND']['attemptcostppm'])
+timepref = float(config['LND']['timepref'])
+apriori = float(config['LND']['apriori'])
+rf = float(config['LND']['riskfactor'])
+max_distance_cln = int(config['CLN']['max_distance_cln'])
+blk_per_year = int(config['CLN']['blk_per_year'])
+cln_bias = int(config['CLN']['cln_bias'])
+max_cap = int(config['Eclair']['max_cap'])
+min_cap = int(config['Eclair']['min_cap'])
+min_cltv = float(config['Eclair']['min_cltv'])
+max_cltv = float(config['Eclair']['max_cltv'])
+agefactor = float(config['Eclair']['agefactor'])
+basefactor = float(config['Eclair']['basefactor'])
+capfactor = float(config['Eclair']['capfactor'])
+cltvfactor = float(config['Eclair']['cltvfactor'])
+hop_base = int(config['Eclair']['hop_base'])/1000
+hop_rate = int(config['Eclair']['hop_rate'])/1000000
+fail_base = int(config['Eclair']['fail_base'])/1000
+fail_rate = int(config['Eclair']['fail_rate'])/1000000
+locked_funds_risk = float(config['Eclair']['locked_funds_risk'])
+cbr = int(config['General']['cbr'])
+base_penalty = float(config['LDK']['base_penalty'])
+multiplier = float(config['LDK']['multiplier'])
+
+#---------------------------------------------------------------------------
+def make_graph(G):
+    df = pd.read_csv('LN_snapshot.csv')
+    is_multi = df["short_channel_id"].value_counts() > 1
+    df = df[df["short_channel_id"].isin(is_multi[is_multi].index)]
+    node_num = {}
+    nodes_pubkey = list(set(list(df['source']) + list(df['destination'])))
+    for i in range(len(nodes_pubkey)):
+        G.add_node(i)
+        pubkey = nodes_pubkey[i]
+        G.nodes[i]['pubkey'] = pubkey
+        node_num[pubkey] = i
+    for i in df.index:
+        node_src = df['source'][i]
+        node_dest = df['destination'][i]
+        u = node_num[node_src]
+        v = node_num[node_dest]
+        G.add_edge(u,v)
+        channel_id = df['short_channel_id'][i]
+        block_height = int(channel_id.split('x')[0])
+        G.edges[u,v]['id'] = channel_id
+        G.edges[u,v]['capacity'] = int(df['satoshis'][i])
+        G.edges[u,v]['Age'] = block_height 
+        G.edges[u,v]['BaseFee'] = df['base_fee_millisatoshi'][i]/1000
+        G.edges[u,v]['FeeRate'] = df['fee_per_millionth'][i]/1000000
+        G.edges[u,v]['Delay'] = df['delay'][i]
+        G.edges[u,v]['htlc_min'] = int(re.split(r'(\d+)', df['htlc_minimum_msat'][i])[1])/1000
+        G.edges[u,v]['htlc_max'] = int(re.split(r'(\d+)', df['htlc_maximum_msat'][i])[1])/1000
+        G.edges[u,v]['LastFailure'] = 25
+        x = rn.uniform(0, int(df['satoshis'][i]))
+        G.edges[u,v]['Balance'] = x
+    return G
+
+      
+G = nx.DiGraph()
+G = make_graph(G)
 
 def tracker(path, dist, p_amt, p_dist, p_prob):
     global amt_dict, prob_eclair
@@ -66,7 +138,7 @@ def shortest_simple_paths(G, source, target, weight):
     while True:
         if not prev_path:
             prev_dict = {}
-            prob_eclair = {} #
+            prob_eclair = {} 
             paths = {source:[source]}
             dist = nx2._dijkstra(G, source=source, 
                                       target=target, 
@@ -162,45 +234,7 @@ class PathBuffer:
         self.paths.remove(hashable_path)
         return path
     
-#---------------------------------------------------------------------------
-def make_graph(G):
-    df = pd.read_csv('LN_snapshot.csv')
-    is_multi = df["short_channel_id"].value_counts() > 1
-    df = df[df["short_channel_id"].isin(is_multi[is_multi].index)]
-    node_num = {}
-    nodes_pubkey = list(set(list(df['source']) + list(df['destination'])))
-    for i in range(len(nodes_pubkey)):
-        G.add_node(i)
-        pubkey = nodes_pubkey[i]
-        G.nodes[i]['pubkey'] = pubkey
-        node_num[pubkey] = i
-    for i in df.index:
-        node_src = df['source'][i]
-        node_dest = df['destination'][i]
-        u = node_num[node_src]
-        v = node_num[node_dest]
-        G.add_edge(u,v)
-        channel_id = df['short_channel_id'][i]
-        block_height = int(channel_id.split('x')[0])
-        G.edges[u,v]['id'] = channel_id
-        G.edges[u,v]['capacity'] = int(df['satoshis'][i])
-        G.edges[u,v]['Age'] = block_height 
-        G.edges[u,v]['BaseFee'] = df['base_fee_millisatoshi'][i]/1000
-        G.edges[u,v]['FeeRate'] = df['fee_per_millionth'][i]/1000000
-        G.edges[u,v]['Delay'] = df['delay'][i]
-        G.edges[u,v]['htlc_min'] = int(re.split(r'(\d+)', df['htlc_minimum_msat'][i])[1])
-        G.edges[u,v]['htlc_max'] = int(re.split(r'(\d+)', df['htlc_maximum_msat'][i])[1])
-        G.edges[u,v]['LastFailure'] = 25
-        x = rn.uniform(0, int(df['satoshis'][i]))
-        G.edges[u,v]['Balance'] = x
-        G.edges[u,v]['Amount'] = amt
-    return G
 
-
-amt = 1000        
-G = nx.DiGraph()
-cbr = 815700
-G = make_graph(G)
 #-----------------------------------------------------------------------------
 
 def sub_func(u,v, amount):
@@ -226,7 +260,7 @@ def compute_fee(v,u,d):
 #v - target, u - source, d - G.edges[v,u]
 def lnd_cost(v,u,d):
     global timepref
-    rf = 15*10**-9
+    
     compute_fee(v,u,d)        
     timepref *= 0.9
     defaultattemptcost = attemptcost+attemptcostppm*amt_dict[(u,v)]/1000000
@@ -260,6 +294,7 @@ def eclair_cost(v,u,d):
     ncap = 1-normalize(d["capacity"], min_cap, max_cap)
     nage = normalize(d["Age"], d["Age"]-365*24*6, cbr)
     ncltv = normalize(d["Delay"], min_cltv, max_cltv)
+    
     if v == target:
         hop_amt = amt
     else:
@@ -292,7 +327,7 @@ def eclair_cost(v,u,d):
         cost = (fee_dict[(u,v)]+hopcost)*(basefactor + (ncltv*cltvfactor)+
                           (nage*agefactor)+(ncap*capfactor))
     else:
-        if use_log:
+        if use_log == "True":
             cost = fee_dict[(u,v)] + hopcost + risk_cost - failure_cost * math.log(prob)
         else: 
             cost = total_fee + hopcost + total_risk_cost + failure_cost/total_prob
@@ -341,7 +376,8 @@ def route(G, path, source, target):
                 G.edges[u,v]["LastFailure"] = 0
                 j = i-1
                 release_locked(j, path)
-                return f"Routing failed due to low balance in edge {u},{v}"
+                print(f"Routing failed due to low balance in edge {u},{v}")
+                return f"{path}, {total_fee}, Low Balance Failue"
             else:
                 G.edges[u,v]["Balance"] -= amount
                 G.edges[u,v]["Locked"] = amount  
@@ -349,68 +385,53 @@ def route(G, path, source, target):
             amount = amount - fee
             if v == target and amount!=amt:
                 print("Amount is", amount)
-                return "Routing Failed"
+                return f"{path}, {total_fee}, Failure"
             
         release_locked(i-1, path)
-        return f"Routing Successful with total fee = {total_fee}"
+        return f"{path}, {total_fee}, Success"
     except Exception as e:
         print(e)
         return "Routing Failed due to the above error"
-        
-#--------------------------------------------
-amt = 1000
-attemptcost = 100
-attemptcostppm = 1000
-timepref = 0
-apriori = 0.6
-max_distance_cln = 20
-blk_per_year = 52596
-cln_bias = 1
-max_cap = 10**8
-min_cap = 1
-min_cltv = 9
-max_cltv = 2016
-agefactor = 0.35
-basefactor = 0
-capfactor = 0.5
-cltvfactor = 0.15
-hop_base = 0 #relay fees#
-hop_rate = 0
-fail_base = 2000
-fail_rate = 500
-locked_funds_risk = 1e-8
-use_log = False 
-case = 'WeightRatios'
-# case = 'Heuristics'
-base_penalty = 500
-multiplier = 8192
 
 #----------------------------------------------
 def helper(name, func):
+    global use_log, case
     try:
         print("\n**",name,"**")
         if name != 'Eclair':
             dist = nx2._dijkstra(G, source=target, target=source, weight = func, pred=prev_dict, paths=paths)
             res = paths[source]
             print("Path found by", name, res[::-1])
-            print(route(G, res, source, target))
+            result[name] = route(G, res, source, target)
+            
         else:
-            res = list(islice(shortest_simple_paths(G, source=target, target=source, weight=func), 1))
-            for path in res:
-                print("Path found by", name, path[::-1])
-                print(route(G, path, source, target))
+            for cs in ['Eclair_case1', 'Eclair_case2', 'Eclair_case3']:
+                use_log = config[cs]['use_log']
+                case = config[cs]['case'] 
+                res = list(islice(shortest_simple_paths(G, source=target, target=source, weight=func), 1))
+                for path in res:
+                    print("Path found by", cs, path[::-1])
+                    result[cs] = route(G, path, source, target)
     except Exception as e:
         print(e)
         
-algo = {'LND':lnd_cost, 'CLN':cln_cost, 'LDK':ldk_cost, 'Eclair':eclair_cost}      
-for i in range(1): 
+algo = {'LND':lnd_cost, 'CLN':cln_cost, 'LDK':ldk_cost, 'Eclair':eclair_cost} 
+fields = ['Source', 'Target', 'Amount', 'LND', 'CLN', 'LDK', 'Eclair_case1', 'Eclair_case2', 'Eclair_case3']
+filename = "LN_simulation_results.csv"    
+result_list = [] 
+for i in range(epoch):
+    amt = rn.randint(0, 100)
+    result = {}
     source = -1
     target = -1
     while (target == source or (source not in G.nodes()) or (target not in G.nodes())):
         target = rn.randint(0, 13129)
         source = rn.randint(0, 13129)
-    print("\nSource = ",source, "Target = ", target)
+    print("\nSource = ",source, "Target = ", target, "Amount=", amt)
     print("----------------------------------------------")
+    result['Source'] = source
+    result['Target'] = target
+    result['Amount'] = amt
     for name in algo:
         global fee_dict, amt_dict, cache_node, visited
         global prev_dict, paths
@@ -421,4 +442,13 @@ for i in range(1):
         prev_dict = {}
         paths = {target:[target]}
         helper(name, algo[name])
+    result_list.append(result)
+
+with open(filename, 'w') as csvfile:
+    writer = csv.DictWriter(csvfile, fieldnames=fields)
+    writer.writeheader()
+    for i in result_list:
+        writer.writerow(i)
+
+
     
