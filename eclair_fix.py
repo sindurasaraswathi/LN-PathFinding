@@ -190,9 +190,9 @@ def make_graph(G):
         G.edges[u,v]['LastFailure'] = 25
         x = rn.uniform(0, int(df['satoshis'][i]))
         G.edges[u,v]['Balance'] = x
-        G.edges[u,v]['Amount'] = amt
+        # G.edges[u,v]['Amount'] = amt
     return G
-amt = 1000        
+# amt = 1000        
 G = nx.DiGraph()
 cbr = 815700
 G = make_graph(G)
@@ -237,11 +237,16 @@ def eclair_cost(v,u,d):
         hop_amt = amt_dict[(v, prev_dict[v][0])]
     hopcost =  hop_base + hop_amt * hop_rate
     #Success Probability
-    prob = 1 - (hop_amt/d["capacity"])
+    if G.edges[u,v]["capacity"] != 0:
+        prob = 1 - (hop_amt/G.edges[u,v]["capacity"])
+    else:
+        prob = 0
     if v == target:
         total_prob = prob
     else:
         total_prob = prob * prob_eclair[(v, prev_dict[v][0])]
+    if prob<0:
+        total_prob = 0
     prob_eclair[(u,v)] = total_prob
     #fee
     total_fee = amt_dict[(u,v)] - amt
@@ -263,10 +268,16 @@ def eclair_cost(v,u,d):
         cost = (fee_dict[(u,v)]+hopcost)*(basefactor + (ncltv*cltvfactor)+
                           (nage*agefactor)+(ncap*capfactor))
     else:
-        if use_log:
-            cost = fee_dict[(u,v)] + hopcost + risk_cost - failure_cost * math.log(prob)
+        if use_log == "True":
+            if prob>0:
+                cost = fee_dict[(u,v)] + hopcost + risk_cost - failure_cost * math.log(prob)
+            else:
+                cost = float('inf')
         else: 
-            cost = total_fee + hopcost + total_risk_cost + failure_cost/total_prob
+            if total_prob:
+                cost = total_fee + hopcost + total_risk_cost + failure_cost/total_prob
+            else:
+                cost = float('inf')
     return cost
 
 
@@ -322,7 +333,7 @@ def route(G, path, source, target):
         return "Routing Failed due to the above error"
         
 #--------------------------------------------
-amt = 1000
+# amt = 1000
 attemptcost = 100
 attemptcostppm = 1000
 timepref = 0
@@ -373,6 +384,9 @@ for i in range(1):
     while (target == source or (source not in G.nodes()) or (target not in G.nodes())):
         target = rn.randint(0, 13129)
         source = rn.randint(0, 13129)
+    source =  12917 
+    target =  9342 
+    amt= 291038
     print("\nSource = ",source, "Target = ", target)
     print("----------------------------------------------")
     for name in algo:
