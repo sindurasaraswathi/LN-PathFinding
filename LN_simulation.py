@@ -26,14 +26,19 @@ config.read('config.ini')
 #--------------------------------------------
 global use_log, case
 epoch = int(config['General']['iterations'])
+cbr = int(config['General']['cbr'])
+#LND
 attemptcost = float(config['LND']['attemptcost'])
 attemptcostppm = float(config['LND']['attemptcostppm'])
 timepref = float(config['LND']['timepref'])
 apriori = float(config['LND']['apriori'])
 rf = float(config['LND']['riskfactor'])
+#CLN
 max_distance_cln = int(config['CLN']['max_distance_cln'])
 blk_per_year = int(config['CLN']['blk_per_year'])
 cln_bias = int(config['CLN']['cln_bias'])
+rf_cln = int(config['CLN']['riskfactor_cln'])
+#Eclair
 max_cap = int(config['Eclair']['max_cap'])
 min_cap = int(config['Eclair']['min_cap'])
 min_cltv = float(config['Eclair']['min_cltv'])
@@ -47,7 +52,7 @@ hop_rate = int(config['Eclair']['hop_rate'])/1000000
 fail_base = int(config['Eclair']['fail_base'])/1000
 fail_rate = int(config['Eclair']['fail_rate'])/1000000
 locked_funds_risk = float(config['Eclair']['locked_funds_risk'])
-cbr = int(config['General']['cbr'])
+#LDK
 base_penalty = float(config['LDK']['base_penalty'])
 multiplier = float(config['LDK']['multiplier'])
 
@@ -140,7 +145,7 @@ def shortest_simple_paths(G, source, target, weight):
             prev_dict = {}
             prob_eclair = {} 
             paths = {source:[source]}
-            dist = nx2._dijkstra(G, source=source, 
+            dist = shortest_path_func(G, source=source, 
                                       target=target, 
                                       weight=weight, 
                                       pred=prev_dict, 
@@ -260,24 +265,22 @@ def compute_fee(v,u,d):
 #v - target, u - source, d - G.edges[v,u]
 def lnd_cost(v,u,d):
     global timepref
-    
     compute_fee(v,u,d)        
     timepref *= 0.9
     defaultattemptcost = attemptcost+attemptcostppm*amt_dict[(u,v)]/1000000
     penalty = defaultattemptcost * (1/(0.5-timepref/2) - 1)
-    prob_weight = 2**d["LastFailure"]
-    prob = apriori * (1-1/prob_weight)
+    prob_weight = 2**G.edges[u,v]["LastFailure"]
+    prob = apriori * (1-(1/prob_weight))
     if prob == 0:
         cost = float('inf')
     else:
-        cost = fee_dict[(u,v)] + d['Delay']*amt_dict[(u,v)]*rf + penalty/prob
+        cost = fee_dict[(u,v)] + G.edges[u,v]['Delay']*amt_dict[(u,v)]*rf + penalty/prob
     return cost
         
 
 def cln_cost(v,u,d):
-    rf = 10
     compute_fee(v,u,d)
-    cost = amt_dict[(u,v)]*(1+(rf*d["Delay"])/(blk_per_year*100))+1
+    cost = amt_dict[(u,v)]*(1+(rf_cln*G.edges[u,v]["Delay"])/(blk_per_year*100))+1
     return cost
 
 
@@ -291,9 +294,9 @@ def eclair_cost(v,u,d):
     if u in visited:
         return float('inf')
     compute_fee(v,u,d)
-    ncap = 1-normalize(d["capacity"], min_cap, max_cap)
-    nage = normalize(d["Age"], d["Age"]-365*24*6, cbr)
-    ncltv = normalize(d["Delay"], min_cltv, max_cltv)
+    ncap = 1-normalize(G.edges[u,v]["capacity"], min_cap, max_cap)
+    nage = normalize(G.edges[u,v]["Age"], G.edges[u,v]["Age"]-365*24*6, cbr)
+    ncltv = normalize(G.edges[u,v]["Delay"], min_cltv, max_cltv)
     
     if v == target:
         hop_amt = amt
@@ -301,16 +304,21 @@ def eclair_cost(v,u,d):
         hop_amt = amt_dict[(v, prev_dict[v][0])]
     hopcost =  hop_base + hop_amt * hop_rate
     #Success Probability
-    prob = 1 - (hop_amt/d["capacity"])
+    if G.edges[u,v]["capacity"] != 0:
+        prob = 1 - (hop_amt/G.edges[u,v]["capacity"])
+    else:
+        prob = 0
     if v == target:
         total_prob = prob
     else:
         total_prob = prob * prob_eclair[(v, prev_dict[v][0])]
+    if prob<0:
+        total_prob = 0
     prob_eclair[(u,v)] = total_prob
     #fee
     total_fee = amt_dict[(u,v)] - amt
     #total CLTV
-    total_cltv = d["Delay"]
+    total_cltv = G.edges[u,v]["Delay"]
     temp_path = paths[v]
     for i in range(1,len(temp_path)-1):
         p = temp_path[i+1]
@@ -319,7 +327,7 @@ def eclair_cost(v,u,d):
     #total Amount
     total_amount = amt_dict[(u,v)]
     #risk cost
-    risk_cost = total_amount * d["Delay"] * locked_funds_risk
+    risk_cost = total_amount * G.edges[u,v]["Delay"] * locked_funds_risk
     total_risk_cost = total_amount * total_cltv * locked_funds_risk
     #failure cost
     failure_cost = fail_base + total_amount * fail_rate
@@ -328,14 +336,20 @@ def eclair_cost(v,u,d):
                           (nage*agefactor)+(ncap*capfactor))
     else:
         if use_log == "True":
-            cost = fee_dict[(u,v)] + hopcost + risk_cost - failure_cost * math.log(prob)
+            if prob>0:
+                cost = fee_dict[(u,v)] + hopcost + risk_cost - failure_cost * math.log(prob)
+            else:
+                cost = float('inf')
         else: 
-            cost = total_fee + hopcost + total_risk_cost + failure_cost/total_prob
+            if total_prob:
+                cost = total_fee + hopcost + total_risk_cost + failure_cost/total_prob
+            else:
+                cost = float('inf')
     return cost
 
 
 def ldk_cost(v,u,d):
-    htlc_minimum = d['htlc_min']
+    htlc_minimum = G.edges[u,v]['htlc_min']
     compute_fee(v,u,d)
     path_htlc_minimum = max(htlc_minimum+fee_dict[(u,v)], htlc_minimum)
     penalty = base_penalty + (multiplier*amt_dict[(u,v)])/2**30
@@ -356,6 +370,7 @@ def route(G, path, source, target):
     try:
         amt_list = []
         total_fee = 0
+        total_delay = 0
         for i in range(len(path)-1):
             v = path[i]
             u = path[i+1]
@@ -364,6 +379,7 @@ def route(G, path, source, target):
             fee = G.edges[u,v]["BaseFee"] + amt_list[-1]*G.edges[u,v]["FeeRate"]
             amt_list.append(amt_list[-1] + fee)
             total_fee +=  fee
+            total_delay += G.edges[u,v]["Delay"]
         path = path[::-1]
         amt_list = amt_list[::-1]
         print("Amount list", amt_list)
@@ -377,7 +393,7 @@ def route(G, path, source, target):
                 j = i-1
                 release_locked(j, path)
                 print(f"Routing failed due to low balance in edge {u},{v}")
-                return f"{path}, {total_fee}, Low Balance Failue"
+                return f"{path}, {total_fee}, {total_delay}, Low Balance Failure"
             else:
                 G.edges[u,v]["Balance"] -= amount
                 G.edges[u,v]["Locked"] = amount  
@@ -385,10 +401,10 @@ def route(G, path, source, target):
             amount = amount - fee
             if v == target and amount!=amt:
                 print("Amount is", amount)
-                return f"{path}, {total_fee}, Failure"
+                return f"{path}, {total_fee}, {total_delay}, Failure"
             
         release_locked(i-1, path)
-        return f"{path}, {total_fee}, Success"
+        return f"{path}, {total_fee}, {total_delay}, Success"
     except Exception as e:
         print(e)
         return "Routing Failed due to the above error"
@@ -415,12 +431,11 @@ def helper(name, func):
     except Exception as e:
         print(e)
         
-algo = {'LND':lnd_cost, 'CLN':cln_cost, 'LDK':ldk_cost, 'Eclair':eclair_cost} 
-fields = ['Source', 'Target', 'Amount', 'LND', 'CLN', 'LDK', 'Eclair_case1', 'Eclair_case2', 'Eclair_case3']
-filename = "LN_simulation_results.csv"    
+algo = {'LND':lnd_cost, 'CLN':cln_cost, 'LDK':ldk_cost, 'Eclair':eclair_cost}   
 result_list = [] 
 for i in range(epoch):
-    amt = rn.randint(0, 100)
+    k = (i%7)+1
+    amt = rn.randint(10**(k-1), 10**k)
     result = {}
     source = -1
     target = -1
@@ -444,11 +459,15 @@ for i in range(epoch):
         helper(name, algo[name])
     result_list.append(result)
 
+fields = ['Source', 'Target', 'Amount', 'LND', 'CLN', 'LDK', 'Eclair_case1', 'Eclair_case2', 'Eclair_case3']
+filename = config['General']['filename'] 
 with open(filename, 'w') as csvfile:
     writer = csv.DictWriter(csvfile, fieldnames=fields)
     writer.writeheader()
     for i in result_list:
         writer.writerow(i)
+        
+        
 
 
     
