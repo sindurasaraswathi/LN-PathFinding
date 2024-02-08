@@ -17,6 +17,7 @@ from networkx.algorithms.shortest_paths.weighted import _weight_function
 import math
 import configparser
 import csv
+from ordered_set import OrderedSet
 
 config = configparser.ConfigParser()
 config.read('config.ini')
@@ -27,12 +28,16 @@ config.read('config.ini')
 global use_log, case
 epoch = int(config['General']['iterations'])
 cbr = int(config['General']['cbr'])
+src_type = config['General']['source_type']
+dst_type = config['General']['target_type']
+amt_type = config['General']['amount_type']
 #LND
 attemptcost = float(config['LND']['attemptcost'])
 attemptcostppm = float(config['LND']['attemptcostppm'])
 timepref = float(config['LND']['timepref'])
 apriori = float(config['LND']['apriori'])
 rf = float(config['LND']['riskfactor'])
+
 #CLN
 max_distance_cln = int(config['CLN']['max_distance_cln'])
 blk_per_year = int(config['CLN']['blk_per_year'])
@@ -62,7 +67,7 @@ def make_graph(G):
     is_multi = df["short_channel_id"].value_counts() > 1
     df = df[df["short_channel_id"].isin(is_multi[is_multi].index)]
     node_num = {}
-    nodes_pubkey = list(set(list(df['source']) + list(df['destination'])))
+    nodes_pubkey = list(OrderedSet(list(df['source']) + list(df['destination'])))
     for i in range(len(nodes_pubkey)):
         G.add_node(i)
         pubkey = nodes_pubkey[i]
@@ -371,7 +376,8 @@ def route(G, path, source, target):
         amt_list = []
         total_fee = 0
         total_delay = 0
-        for i in range(len(path)-1):
+        path_length = len(path)
+        for i in range(path_length-1):
             v = path[i]
             u = path[i+1]
             if v == target:
@@ -382,9 +388,8 @@ def route(G, path, source, target):
             total_delay += G.edges[u,v]["Delay"]
         path = path[::-1]
         amt_list = amt_list[::-1]
-        print("Amount list", amt_list)
         amount = amt_list[0]
-        for i in range(len(path)-1):
+        for i in range(path_length-1):
             u = path[i]
             v = path[i+1]
             fee = G.edges[u,v]["BaseFee"] + amt_list[i+1]*G.edges[u,v]["FeeRate"]
@@ -392,19 +397,17 @@ def route(G, path, source, target):
                 G.edges[u,v]["LastFailure"] = 0
                 j = i-1
                 release_locked(j, path)
-                print(f"Routing failed due to low balance in edge {u},{v}")
-                return f"{path}, {total_fee}, {total_delay}, Low Balance Failure"
+                return [path, total_fee, total_delay, path_length, 'Failure']
             else:
                 G.edges[u,v]["Balance"] -= amount
                 G.edges[u,v]["Locked"] = amount  
                 G.edges[u,v]["LastFailure"] = 25
             amount = amount - fee
             if v == target and amount!=amt:
-                print("Amount is", amount)
-                return f"{path}, {total_fee}, {total_delay}, Failure"
+                return [path, total_fee, total_delay, path_length, 'Failure']
             
         release_locked(i-1, path)
-        return f"{path}, {total_fee}, {total_delay}, Success"
+        return [path, total_fee, total_delay, path_length, 'Success']
     except Exception as e:
         print(e)
         return "Routing Failed due to the above error"
@@ -431,17 +434,60 @@ def helper(name, func):
     except Exception as e:
         print(e)
         
+        
+def node_classifier():
+    df = pd.read_csv('LN_snapshot.csv')
+    is_multi = df["short_channel_id"].value_counts() > 1
+    df = df[df["short_channel_id"].isin(is_multi[is_multi].index)]
+    nodes_pubkey = list(OrderedSet(list(df['source']) + list(df['destination'])))
+    node_num = {}
+    for i in range(len(nodes_pubkey)):
+        pubkey = nodes_pubkey[i]
+        node_num[pubkey] = i   
+    src_count = df['source'].value_counts()
+    node_cap = df[['source', 'satoshis']]
+    node_cap = node_cap.groupby('source').sum()
+    well_node = []
+    fair_node = []
+    poor_node = []
+    for i in node_cap.index:
+        chan_cnt = src_count[i]
+        cap = node_cap.loc[i,'satoshis']
+        if cap >= 10**6 and chan_cnt>200:
+            well_node.append(node_num[i])
+        elif cap > 10**4 and cap < 10**6 and chan_cnt>3 and chan_cnt<=200:
+            fair_node.append(node_num[i])
+        else:
+            poor_node.append(node_num[i])            
+    return well_node, fair_node, poor_node
+
+
+def node_selector(node_type):
+    if node_type == 'well':
+         return rn.choice(well_node)
+    elif node_type == 'fair':
+        return rn.choice(fair_node)
+    elif node_type == 'poor':
+        return rn.choice(poor_node)
+    else:
+        return rn.randint(0,13129)
+        
+    
 algo = {'LND':lnd_cost, 'CLN':cln_cost, 'LDK':ldk_cost, 'Eclair':eclair_cost}   
 result_list = [] 
+well_node, fair_node, poor_node = node_classifier()
 for i in range(epoch):
-    k = (i%7)+1
-    amt = rn.randint(10**(k-1), 10**k)
+    if amt_type == 'random':
+        k = (i%7)+1
+        amt = rn.randint(10**(k-1), 10**k)
+    else:
+        amt = config['General']['amount']
     result = {}
     source = -1
     target = -1
     while (target == source or (source not in G.nodes()) or (target not in G.nodes())):
-        target = rn.randint(0, 13129)
-        source = rn.randint(0, 13129)
+        source = node_selector(src_type)
+        target = node_selector(dst_type)
     print("\nSource = ",source, "Target = ", target, "Amount=", amt)
     print("----------------------------------------------")
     result['Source'] = source
@@ -467,7 +513,7 @@ with open(filename, 'w') as csvfile:
     for i in result_list:
         writer.writerow(i)
         
-        
 
+        
 
     
