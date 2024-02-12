@@ -357,7 +357,7 @@ def ldk_cost(v,u,d):
     htlc_minimum = G.edges[u,v]['htlc_min']
     compute_fee(v,u,d)
     path_htlc_minimum = max(htlc_minimum+fee_dict[(u,v)], htlc_minimum)
-    penalty = base_penalty + (multiplier*amt_dict[(u,v)])/2**30
+    penalty = base_penalty/1000 + ((multiplier/1000)*amt_dict[(u,v)])/2**30
     cost = max(fee_dict[(u,v)], path_htlc_minimum) + penalty
     return cost
 
@@ -383,7 +383,9 @@ def route(G, path, source, target):
             if v == target:
                 amt_list.append(amt)
             fee = G.edges[u,v]["BaseFee"] + amt_list[-1]*G.edges[u,v]["FeeRate"]
-            amt_list.append(amt_list[-1] + fee)
+            fee = round(fee, 5)
+            a = round(amt_list[-1] + fee, 5)
+            amt_list.append(a)
             total_fee +=  fee
             total_delay += G.edges[u,v]["Delay"]
         path = path[::-1]
@@ -393,6 +395,7 @@ def route(G, path, source, target):
             u = path[i]
             v = path[i+1]
             fee = G.edges[u,v]["BaseFee"] + amt_list[i+1]*G.edges[u,v]["FeeRate"]
+            fee = round(fee, 5)
             if amount > G.edges[u,v]["Balance"] or amount<=0:
                 G.edges[u,v]["LastFailure"] = 0
                 j = i-1
@@ -402,8 +405,9 @@ def route(G, path, source, target):
                 G.edges[u,v]["Balance"] -= amount
                 G.edges[u,v]["Locked"] = amount  
                 G.edges[u,v]["LastFailure"] = 25
-            amount = amount - fee
+            amount = round(amount - fee, 5)
             if v == target and amount!=amt:
+                print(amt_list)
                 return [path, total_fee, total_delay, path_length, 'Failure']
             
         release_locked(i-1, path)
@@ -481,14 +485,14 @@ for i in range(epoch):
         k = (i%7)+1
         amt = rn.randint(10**(k-1), 10**k)
     else:
-        amt = config['General']['amount']
+        amt = int(config['General']['amount'])
     result = {}
     source = -1
     target = -1
     while (target == source or (source not in G.nodes()) or (target not in G.nodes())):
         source = node_selector(src_type)
         target = node_selector(dst_type)
-    print("\nSource = ",source, "Target = ", target, "Amount=", amt)
+    print("\nSource = ",source, "Target = ", target, "Amount=", amt, 'Epoch =', i)
     print("----------------------------------------------")
     result['Source'] = source
     result['Target'] = target
