@@ -4,6 +4,7 @@ Created on Tue Nov  7 11:08:01 2023
 
 @author: sindu
 """
+import datetime
 
 import networkx as nx
 import random as rn
@@ -18,6 +19,9 @@ import math
 import configparser
 import csv
 from ordered_set import OrderedSet
+
+startTime = datetime.datetime.now()
+ 
 
 config = configparser.ConfigParser()
 config.read('config.ini')
@@ -487,7 +491,8 @@ def amt_selector():
     upper_bound = int(min(src_max, tgt_max))
     if upper_bound < 1:
         return 0
-    return rn.randint(1, upper_bound)
+    rand_exp = rn.uniform(0, math.log10(upper_bound))
+    return int(10**rand_exp)
     
             
     
@@ -536,7 +541,9 @@ with open(filename, 'w') as csvfile:
     for i in result_list:
         writer.writerow(i)
         
-
+endTime = datetime.datetime.now()
+ 
+print(endTime - startTime)
         
 
     

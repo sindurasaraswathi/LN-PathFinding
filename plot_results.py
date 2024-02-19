@@ -55,16 +55,37 @@ for a in algo:
     srate[a] = slist
     frate[a] = flist
     
+print(srate)
+# sns.displot(data=df1[['LNDfee', 'LDKfee', 'CLNfee', 'Eclair_case1fee', 'Eclair_case2fee', 'Eclair_case3fee']], kind='ecdf')
+# plt.xscale('log')
+# plt.show()
+
+# sns.displot(data=df1[['LNDdly', 'LDKdly', 'CLNdly', 'Eclair_case1dly', 'Eclair_case2dly', 'Eclair_case3dly']], kind='ecdf')
+# plt.xscale('log')
+
+# plt.show()
+
+# sns.displot(data=df1[['LNDpthlnt', 'LDKpthlnt', 'CLNpthlnt', 'Eclair_case1pthlnt', 'Eclair_case2pthlnt', 'Eclair_case3pthlnt']], kind='ecdf')
+# plt.xscale('log')
+# plt.show()
+
+
 df1 = pd.DataFrame(frate)
 df1['Amount'] = amt_bins
-    
-# df1.to_csv('filtered_data_fail.csv')
 
-df1.plot(kind='line')
-box_pts = 10
-box = np.ones(box_pts)/box_pts
-x = np.arange(end)
-plt.bar(x, np.convolve(df1['LND'], box, mode='same'))
+ratio_df = pd.DataFrame()
+for a in algo:
+    ratio_df[a] = df1[a]/df1['Amount']
+
+ratio_df.plot()
 plt.show()
+# # df1.to_csv('filtered_data_fail.csv')
+
+# df1.plot(kind='line')
+# box_pts = 10
+# box = np.ones(box_pts)/box_pts
+# x = np.arange(end)
+# plt.bar(x, np.convolve(df1['LND'], box, mode='same'))
+# plt.show()
 
 
