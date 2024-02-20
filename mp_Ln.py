@@ -537,8 +537,6 @@ if __name__ == '__main__':
         i = i+1
         
 
-        
-
     pool = mp.Pool(processes=mp.cpu_count())
     a = pool.starmap(callable, work)
     result_list.append(a)
@@ -553,6 +551,5 @@ if __name__ == '__main__':
             writer.writerow(i)
             
     endTime = datetime.datetime.now()
- 
     print(endTime - startTime)
     
