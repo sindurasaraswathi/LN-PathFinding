@@ -21,6 +21,7 @@ import configparser
 import csv
 from ordered_set import OrderedSet
 import multiprocessing as mp
+import pickle
 
 startTime = datetime.datetime.now()
  
@@ -103,7 +104,7 @@ def make_graph(G):
 G = nx.DiGraph()
 G = make_graph(G)
 
-def callable(source, target, amt, result):
+def callable(source, target, amt, result, name):
     def tracker(path, dist, p_amt, p_dist, p_prob):
         global amt_dict, prob_eclair
         amt_tracker = {}
@@ -445,16 +446,16 @@ def callable(source, target, amt, result):
             print(e)
             
     algo = {'LND':lnd_cost, 'CLN':cln_cost, 'LDK':ldk_cost, 'Eclair':eclair_cost} 
-    for name in algo:
-        global fee_dict, amt_dict, cache_node, visited
-        global prev_dict, paths
-        fee_dict = {}
-        amt_dict = {}
-        cache_node = target
-        visited = set()
-        prev_dict = {}
-        paths = {target:[target]}
-        helper(name, algo[name])
+    # for name in algo:
+    global fee_dict, amt_dict, cache_node, visited
+    global prev_dict, paths
+    fee_dict = {}
+    amt_dict = {}
+    cache_node = target
+    visited = set()
+    prev_dict = {}
+    paths = {target:[target]}
+    helper(name, algo[name])
     return result
         
 if __name__ == '__main__':       
@@ -487,7 +488,7 @@ if __name__ == '__main__':
     
     def node_selector(node_type):
         if node_type == 'well':
-             return rn.choice(well_node)
+              return rn.choice(well_node)
         elif node_type == 'fair':
             return rn.choice(fair_node)
         elif node_type == 'poor':
@@ -511,6 +512,7 @@ if __name__ == '__main__':
         
     work = []              
     result_list = [] 
+    
     well_node, fair_node, poor_node = node_classifier()
     i = 0
     while i<epoch:
@@ -533,21 +535,41 @@ if __name__ == '__main__':
         result['Source'] = source
         result['Target'] = target
         result['Amount'] = amt
-        work.append((source, target, amt, result))
+        
+        for algo in ['LND', 'LDK', 'CLN', 'Eclair']:
+            work.append((source, target, amt, result, algo))
         i = i+1
         
-
-    pool = mp.Pool(processes=mp.cpu_count())
+    # # with open("data1.pickle", 'wb') as f:
+    # #     pickle.dump(work, f)
+        
+    # with open("data1.pickle", 'rb') as f:
+    #     work = pickle.load(f)
+    
+    pool = mp.Pool(processes=4)
     a = pool.starmap(callable, work)
     result_list.append(a)
-        
+    
+    
+    ans_list = []
+    i = 0
+    temp = {}
+    for res in result_list[0]:
+        if i<4:
+            temp.update(res)
+        i = i+1
+        if i == 4:
+            ans_list.append(temp)
+            temp = {}
+            i = 0
+            
 
     fields = ['Source', 'Target', 'Amount', 'LND', 'CLN', 'LDK', 'Eclair_case1', 'Eclair_case2', 'Eclair_case3']
     filename = config['General']['filename'] 
     with open(filename, 'w') as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fields)
         writer.writeheader()
-        for i in result_list[0]:
+        for i in ans_list:
             writer.writerow(i)
             
     endTime = datetime.datetime.now()
