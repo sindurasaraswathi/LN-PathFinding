@@ -12,11 +12,13 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 from statistics import mean, mode, median
+from tabulate import tabulate
 
-df = pd.read_csv('/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/LN_results_random_mp_new.csv')
+plt.style.use('ggplot')
+df = pd.read_csv('/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/LN_results_random_mp_large_104.csv')
 df = df.dropna()
 
-
+#seperate each field from the string
 def extract_field(num, col):
     extract_list = []
     for i in df[col]:
@@ -24,9 +26,10 @@ def extract_field(num, col):
         extract_list.append(elem[num])
     return extract_list
 
+#store values (fee, delay, pathlength, throughput) in df1 dataframe
 df1 = pd.DataFrame()
 df1['amount'] = df['Amount']
-algo = {'LND', 'CLN','LDK', 'Eclair_case1', 'Eclair_case2', 'Eclair_case3'}
+algo = ['LND', 'CLN','LDK', 'Eclair_case1', 'Eclair_case2', 'Eclair_case3']
 for a in algo:
     df1[f'{a}fee'] = extract_field(1, a)
     df1[f'{a}dly'] = extract_field(2, a)
@@ -36,17 +39,15 @@ for a in algo:
 
 srate = {}
 frate = {}
-win_fee_sum = {}
-fail_fee_sum = {}
+
 start = 0
 end = 8
 step = 1
+#calculate the count of success and failure in the bin of amount
 for a in algo:
     slist = []
     flist = []
     amt_bins = []
-    win_fee = []
-    fail_fee = []
     for i in range(start, end, step):
         if i == 0:
             lrange = 0
@@ -57,17 +58,29 @@ for a in algo:
         amt_bins.append(len(data))
         slist.append(len(data[data[f'{a}tp'] == 'Success']))
         flist.append(len(data[data[f'{a}tp'] == 'Failure']))
-        # win_fee.append(data[data[f'{a}tp'] == 'Success'][f'{a}fee'].sum())
-        # fail_fee.append(data[data[f'{a}tp'] == 'Failure'][f'{a}fee'].sum())
     srate[a] = slist
     frate[a] = flist
-    # win_fee_sum[a] = win_fee
-    # fail_fee_sum[a] = fail_fee
+
     
 srate['Amount'] = amt_bins
 frate['Amount'] = amt_bins
-# win_fee_sum['Amount'] = amt_bins
-# fail_fee_sum['Amount'] = amt_bins
+
+sdf = pd.DataFrame(srate)
+fdf = pd.DataFrame(frate)
+
+
+for a in algo:
+    sdf[a] = sdf[a]*100/sdf['Amount']
+sdf['Amount'] = sdf['Amount']*100/sdf['Amount']
+sdf['Bins'] = [f'{i}-{i+1}' for i in range(8)]
+sdf.plot(kind = 'bar')
+plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+plt.show()
+
+# print(sdf.to_latex(index=False))
+print('\n', tabulate(sdf, headers = 'keys', tablefmt = 'psql',showindex=False))
+print('\nSuccess Rate:\n\n', tabulate(srate, headers = 'keys', tablefmt = 'psql',showindex=False))
+print('\nFailure Rate:\n\n', tabulate(frate, headers = 'keys', tablefmt = 'psql',showindex=False))
 
 
 def df_plot(data, amt_bins, algo, title, xlabel, ylabel):
@@ -76,15 +89,15 @@ def df_plot(data, amt_bins, algo, title, xlabel, ylabel):
     for a in algo:
         ratio_df[a] = df_temp[a]/df_temp['Amount']
     ratio_df.plot()
-    # df_temp.plot(kind='bar')
+    df_temp.plot(kind='bar')
     plt.title(title)
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
     plt.show()
 
 
-df_plot(srate, amt_bins, algo, 'Success Ratio', 'Amount bins', 'Ratio')
-df_plot(frate, amt_bins, algo, 'Failure Ratio', 'Amount bins', 'Ratio')
+df_plot(srate, amt_bins, algo, 'Success Rate', 'Amount bins', 'Ratio')
+df_plot(frate, amt_bins, algo, 'Failure Rate', 'Amount bins', 'Ratio')
 
 
 def save_df(data, filename):
@@ -97,9 +110,11 @@ df1.to_csv('result_data.csv')
 
 
 #bar graphs
+
 def plot_graph(x, y, kind, xlog, ylog, title, xlabel, ylabel):
+    fig, ax = plt.subplots(figsize=plt.figaspect(1/3))
     if kind == 'scatter':
-        plt.scatter(x,y)
+        ax.scatter(x,y)
     elif kind == 'hist':
         plt.hist(x, bins=y)
     elif kind == 'bar':
@@ -113,12 +128,17 @@ def plot_graph(x, y, kind, xlog, ylog, title, xlabel, ylabel):
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
     plt.show()
-
+    
+new_df = pd.DataFrame()
 for a in algo:    
     plot_graph(df1['amount'], df1[f'{a}fee'], 'scatter', True, True, f'{a} Fee vs Amount', 'Amount (log scale)', 'Fee (log scale)')
-    
+    # plot_graph(df1[f'{a}fee'], 1000, 'hist', True, True, f'{a} Fee vs Amount', 'Amount (log scale)', 'Fee (log scale)')
+    new_df[a] = df1[f'{a}fee']
+plt.show()
 
 def sns_plot(data, kind, xlog, ylog, title, xlabel, ylabel):
+    fig, ax = plt.subplots(figsize=plt.figaspect(1/3))
+    # ax.hist(data)
     sns.displot(data, kind=kind)
     if xlog:
         plt.xscale('log')
@@ -127,13 +147,17 @@ def sns_plot(data, kind, xlog, ylog, title, xlabel, ylabel):
     plt.title(title)
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
+    # plt.legend(algo)
     plt.show()
+
 
 # data = df1[['LNDdly', 'LDKdly', 'CLNdly', 'Eclair_case1dly', 'Eclair_case2dly', 'Eclair_case3dly']]
 # sns_plot(data, 'ecdf', True, False, 'Delay ECDF', '', 'Proportion')
-# data = df1[['LNDpthlnt', 'LDKpthlnt', 'CLNpthlnt', 'Eclair_case1pthlnt', 'Eclair_case2pthlnt', 'Eclair_case3pthlnt']]
-# sns_plot(data, 'hist', True, False, 'Path length', '', '')
-# sns_plot(data, 'kde', True, False, 'Path length', '', '')
+
+
+data = df1[['LNDpthlnt', 'LDKpthlnt', 'CLNpthlnt', 'Eclair_case1pthlnt', 'Eclair_case2pthlnt', 'Eclair_case3pthlnt']]
+# sns_plot(data, 'hist', False, False, 'Path length', '', '')
+sns_plot(data, 'kde', False, False, 'Path length (KDE)', '', '')
 
 
 
