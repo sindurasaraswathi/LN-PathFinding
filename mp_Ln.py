@@ -477,11 +477,11 @@ if __name__ == '__main__':
         for i in node_cap.index:
             chan_cnt = src_count[i]
             cap = node_cap.loc[i,'satoshis']
-            if cap >= 10**6 and chan_cnt>200:
+            if cap >= 10**6 and chan_cnt>5:
                 well_node.append(node_num[i])
-            elif cap > 10**4 and cap < 10**6 and chan_cnt>3 and chan_cnt<=200:
+            elif cap > 10**4 and cap < 10**6 and chan_cnt>5:
                 fair_node.append(node_num[i])
-            else:
+            elif chan_cnt<=5:
                 poor_node.append(node_num[i])            
         return well_node, fair_node, poor_node
     
@@ -507,8 +507,8 @@ if __name__ == '__main__':
         upper_bound = int(min(src_max, tgt_max))
         if upper_bound < 1:
             return 0
-        if upper_bound < (10**4)+1: #comment this
-            return 0
+        # if upper_bound < (10**7)+1: #comment this
+        #     return 0
         return rn.randint(1, upper_bound)
         # rand_exp = rn.uniform(0, math.log10(upper_bound))
         # return int(10**rand_exp)
@@ -518,7 +518,6 @@ if __name__ == '__main__':
     result_list = [] 
     
     well_node, fair_node, poor_node = node_classifier()
-    print(len(fair_node), len(well_node))
     i = 0
     while i<epoch:
         result = {}
@@ -551,7 +550,7 @@ if __name__ == '__main__':
     # with open("data1.pickle", 'rb') as f:
     #     work = pickle.load(f)
     
-    pool = mp.Pool(processes=4)
+    pool = mp.Pool(processes=8)
     a = pool.starmap(callable, work)
     result_list.append(a)
     
@@ -577,6 +576,6 @@ if __name__ == '__main__':
         for i in ans_list:
             writer.writerow(i)
             
-    endTime = datetime.datetime.now()
-    print(endTime - startTime)
+endTime = datetime.datetime.now()
+print(endTime - startTime)
     
