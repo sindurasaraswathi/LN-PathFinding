@@ -505,13 +505,19 @@ if __name__ == '__main__':
         for edges in G.in_edges(target):
             tgt_max = max(tgt_max, G.edges[edges]['Balance'])
         upper_bound = int(min(src_max, tgt_max))
-        if upper_bound < 1:
-            return 0
-        # if upper_bound < (10**7)+1: #comment this
-        #     return 0
-        return rn.randint(1, upper_bound)
-        # rand_exp = rn.uniform(0, math.log10(upper_bound))
-        # return int(10**rand_exp)
+        if amt_type == 'fixed':
+            if amt<= upper_bound:
+                return True
+            else:
+                return False
+        else:
+            if upper_bound < 1:
+                return 0
+            # if upper_bound < (10**7)+1: #comment this
+            #     return 0
+            return rn.randint(1, upper_bound)
+            # rand_exp = rn.uniform(0, math.log10(upper_bound))
+            # return int(10**rand_exp)
         
         
     work = []              
@@ -526,6 +532,12 @@ if __name__ == '__main__':
         while (target == source or (source not in G.nodes()) or (target not in G.nodes())):
             source = node_selector(src_type)
             target = node_selector(dst_type)
+            
+        if amt_type == 'fixed':
+            temp = amt_selector()
+            if not(temp):
+                continue
+            
         if amt_type == 'random':
             # k = (i%7)+1
             # amt = rn.randint(10**(k-1), 10**k)

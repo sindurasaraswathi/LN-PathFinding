@@ -13,6 +13,7 @@ import seaborn as sns
 import numpy as np
 from statistics import mean, mode, median
 from tabulate import tabulate
+from ordered_set import OrderedSet
 
 plt.style.use('ggplot')
 f1 = pd.read_csv('/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/LN_results_random_mp_new.csv')
@@ -25,9 +26,9 @@ df = pd.concat([f1,f2,f3], axis=0)
 df = df.dropna()
 df = df.drop_duplicates()
 
-df = pd.read_csv('/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/LN_results_random_mp_p_w.csv')
-df = df.dropna()
-df = df.drop_duplicates()
+# df = pd.read_csv('/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/LN_results_mp_famt.csv')
+# df = df.dropna()
+# df = df.drop_duplicates()
 
 #-------------------------------------------------------------------------------------------------
 #seperate each field from the string
@@ -138,35 +139,48 @@ def plot_graph(x, y, kind, xlog, ylog, title, xlabel, ylabel):
 def fee_df(val, name, step):
     end = 8
     fee_list = []
-    bins = []
     count = []
-    fee_mean = []
+    fee_med = []
+    amount_list = []
     i = 0
     while i<end:
         if i==0:
             lrange = 0
-        lrange = 10**i
+        else:
+            lrange = 10**i
         i = i+step
+        if i>end:
+            i=end
         rrange = 10**(i)
         count.append((lrange,rrange))
         data = val[(val['amount']>lrange) & (val['amount']<=rrange)]
-        fee_mean.append(data[name].mean())
+        fee_med.append(data[name].median())
         fee_list.append(list(data[name]))
-    return fee_list, fee_mean
+        amount_list.append(list(data['amount']))
+    return fee_list, fee_med, amount_list
     
-    
-    
+       
 for a in algo:   
+    grp_val = df1[[f'{a}fee', 'amount']].groupby('amount')
     for fltr in ['Success', 'Overall']:
         if fltr == 'Success':
             val = df1[df1[f'{a}tp']=='Success'][[f'{a}fee', 'amount']]
         else:
             val = df1[[f'{a}fee', 'amount']]
-    name = f'{a}fee'
-    step = 1/3
-    fee_list, fee_mean = fee_df(val, name, step)
-    plot_graph(fee_list, 0, 'box', False, True, f'{a} Fee vs Amount ({fltr})', 'Amount', 'Fee')
-    plot_graph(range(len(fee_mean)), fee_mean,'scatter', False, True, f'{a} Average Fee vs Amount ({fltr})', 'Amount', 'Fee')
+        name = f'{a}fee'
+        step = 1
+        fee_list, fee_med, amount_list = fee_df(val, name, step)
+        plot_graph(fee_list, 0, 'box', False, True, f'{a} Fee vs Amount ({fltr})', 'Amount', 'Fee')
+        plot_graph(range(len(fee_med)), fee_med,'scatter', False, True, f'{a} Median Fee vs Amount ({fltr})', 'Amount', 'Fee')
+        
+        
+        temp = []
+        for i in range(len(amount_list)):
+            amt_list = list(OrderedSet(amount_list[i]))
+            for j in amt_list:
+                temp.append(list(grp_val.get_group(j)[f'{a}fee']))
+
+plot_graph(temp[:5], 0, 'box', False, False, f'{a} Fee vs Amount ({fltr})', 'Amount', 'Fee')
 
 
 
