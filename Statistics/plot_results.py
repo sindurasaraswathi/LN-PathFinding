@@ -160,8 +160,10 @@ def fee_df(val, name, step):
     return fee_list, fee_med, amount_list
     
        
-for a in algo:   
-    grp_val = df1[[f'{a}fee', 'amount']].groupby('amount')
+for a in algo:
+    pdf = pd.DataFrame(columns=['avg amount', 'avg path length', 'avg median fee'])
+    grp_val = df1[[f'{a}fee', 'amount']].sort_values('amount').groupby('amount')
+    pth_grp = df1[[f'{a}pthlnt', 'amount']].sort_values('amount').groupby('amount').mean()
     for fltr in ['Success', 'Overall']:
         if fltr == 'Success':
             val = df1[df1[f'{a}tp']=='Success'][[f'{a}fee', 'amount']]
@@ -170,19 +172,42 @@ for a in algo:
         name = f'{a}fee'
         step = 1
         fee_list, fee_med, amount_list = fee_df(val, name, step)
-        plot_graph(fee_list, 0, 'box', False, True, f'{a} Fee vs Amount ({fltr})', 'Amount', 'Fee')
-        plot_graph(range(len(fee_med)), fee_med,'scatter', False, True, f'{a} Median Fee vs Amount ({fltr})', 'Amount', 'Fee')
+        # plot_graph(fee_list, 0, 'box', False, True, f'{a} Fee vs Amount ({fltr})', 'Amount', 'Fee')
+        # plot_graph(range(len(fee_med)), fee_med,'scatter', False, True, f'{a} Median Fee vs Amount ({fltr})', 'Amount', 'Fee')
         
-        
-        temp = []
-        for i in range(len(amount_list)):
-            amt_list = list(OrderedSet(amount_list[i]))
-            for j in amt_list:
-                temp.append(list(grp_val.get_group(j)[f'{a}fee']))
+    val = []
+    key = []
+    for i, j in grp_val:
+        if i%50 == 0 and i<=1000 and i>=100:
+            val.append(list(j[f'{a}fee']))
+            key.append(i)
+                
+                
+         
+    for j in range(8):
+        pval = []
+        pkey = []
+        fval = []
+        for i in pth_grp.index:
+            if i>10**j and i<=10**(j+1):
+                pkey.append(i)
+                pval.append(pth_grp.loc[i][f'{a}pthlnt'])
+                fval.append(grp_val.get_group(i)[f'{a}fee'].median())
+        pdf.loc[j] = [mean(pkey), mean(pval), mean(fval)]
+    print(a,'\n', tabulate(pdf, headers = 'keys', tablefmt = 'psql',showindex=True))
+    
+        # for i in range(len(amount_list)):
+        #     amt_list = list(OrderedSet(amount_list[i]))
+        #     key.append(amt_list)
+        #     temp = []
+        #     for j in amt_list:
+        #         temp.append(list(grp_val.get_group(j)[f'{a}fee']))
+        #     val.append(temp)
+# plot_graph(val, 0, 'box', False, False, f'{a} Fee vs Amount ({fltr})', 'Amount', 'Fee')
 
-plot_graph(temp[:5], 0, 'box', False, False, f'{a} Fee vs Amount ({fltr})', 'Amount', 'Fee')
-
-
+plt.boxplot(val, showfliers=False)
+plt.xticks(range(1,len(key)+1), key)
+plt.show()
 
 #-------------------------------------------------------------------------------------------------
 def sns_plot(data, kind, xlog, ylog, title, xlabel, ylabel):
@@ -211,7 +236,8 @@ sns_plot(data, 'kde', False, False, 'Path length (KDE)', '', '')
 # print(data.mean())
 
 
-# data = df1[['LNDdly', 'LDKdly', 'CLNdly', 'Eclair_case1dly', 'Eclair_case2dly', 'Eclair_case3dly']]
+data = df1[['LNDdly', 'LDKdly', 'CLNdly', 'Eclair_case1dly', 'Eclair_case2dly', 'Eclair_case3dly']]
+print(data.mean())
 # data=df1[['LNDfee', 'LDKfee', 'CLNfee', 'Eclair_case1fee', 'Eclair_case2fee', 'Eclair_case3fee']]
 
 
