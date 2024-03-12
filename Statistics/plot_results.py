@@ -238,7 +238,8 @@ sns_plot(data, 'kde', False, False, 'Path length (KDE)', '', '')
 
 data = df1[['LNDdly', 'LDKdly', 'CLNdly', 'Eclair_case1dly', 'Eclair_case2dly', 'Eclair_case3dly']]
 print(data.mean())
-# data=df1[['LNDfee', 'LDKfee', 'CLNfee', 'Eclair_case1fee', 'Eclair_case2fee', 'Eclair_case3fee']]
+data=df1[['LNDfee', 'LDKfee', 'CLNfee', 'Eclair_case1fee', 'Eclair_case2fee', 'Eclair_case3fee']]
+print(data.mean())
 
 
 #-------------------------------------------------------------------------------------------------
