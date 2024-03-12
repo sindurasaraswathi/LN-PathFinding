@@ -488,7 +488,7 @@ if __name__ == '__main__':
     
     def node_selector(node_type):
         if node_type == 'well':
-              return rn.choice(well_node)
+            return rn.choice(well_node)
         elif node_type == 'fair':
             return rn.choice(fair_node)
         elif node_type == 'poor':
@@ -497,7 +497,7 @@ if __name__ == '__main__':
             return rn.randint(0,13129)
         
         
-    def amt_selector():
+    def node_ok(source, target):
         src_max = 0
         tgt_max = 0
         for edges in G.out_edges(source):
@@ -505,19 +505,10 @@ if __name__ == '__main__':
         for edges in G.in_edges(target):
             tgt_max = max(tgt_max, G.edges[edges]['Balance'])
         upper_bound = int(min(src_max, tgt_max))
-        if amt_type == 'fixed':
-            if amt<= upper_bound:
-                return True
-            else:
-                return False
+        if amt <= upper_bound:
+            return True
         else:
-            if upper_bound < 1:
-                return 0
-            # if upper_bound < (10**7)+1: #comment this
-            #     return 0
-            return rn.randint(1, upper_bound)
-            # rand_exp = rn.uniform(0, math.log10(upper_bound))
-            # return int(10**rand_exp)
+            return False
         
         
     work = []              
@@ -526,26 +517,23 @@ if __name__ == '__main__':
     well_node, fair_node, poor_node = node_classifier()
     i = 0
     while i<epoch:
+        if amt_type == 'fixed':
+            amt = int(config['General']['amount'])
+            
+        elif amt_type == 'random':
+            k = (i%8)+1
+            amt = rn.randint(10**(k-1), 10**k)
+            
         result = {}
         source = -1
         target = -1
         while (target == source or (source not in G.nodes()) or (target not in G.nodes())):
             source = node_selector(src_type)
             target = node_selector(dst_type)
-            
-        if amt_type == 'fixed':
-            temp = amt_selector()
-            if not(temp):
-                continue
-            
-        if amt_type == 'random':
-            # k = (i%7)+1
-            # amt = rn.randint(10**(k-1), 10**k)
-            amt = amt_selector()
-            if amt == 0:
-                continue
-        else:
-            amt = int(config['General']['amount'])
+        
+        if not(node_ok(source, target)):
+            continue       
+                        
         print("\nSource = ",source, "Target = ", target, "Amount=", amt, 'Epoch =', i)
         print("----------------------------------------------")
         result['Source'] = source
@@ -562,7 +550,7 @@ if __name__ == '__main__':
     # with open("data1.pickle", 'rb') as f:
     #     work = pickle.load(f)
     
-    pool = mp.Pool(processes=8)
+    pool = mp.Pool(processes=4)
     a = pool.starmap(callable, work)
     result_list.append(a)
     
