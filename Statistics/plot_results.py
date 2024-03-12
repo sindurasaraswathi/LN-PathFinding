@@ -16,19 +16,19 @@ from tabulate import tabulate
 from ordered_set import OrderedSet
 
 plt.style.use('ggplot')
-f1 = pd.read_csv('/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/LN_results_random_mp_new.csv')
-f2 = pd.read_csv('/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/LN_results_random_mp_large.csv')
-f2 = f2[f2['Amount']>(10**6)]
-f3 = pd.read_csv('/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/LN_results_random_mp_large_104.csv')
-f3 = f3[f3['Amount']>(10**5)]
+# f1 = pd.read_csv('/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/LN_results_random_mp_new.csv')
+# f2 = pd.read_csv('/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/LN_results_random_mp_large.csv')
+# f2 = f2[f2['Amount']>(10**6)]
+# f3 = pd.read_csv('/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/LN_results_random_mp_large_104.csv')
+# f3 = f3[f3['Amount']>(10**5)]
 
-df = pd.concat([f1,f2,f3], axis=0)
-df = df.dropna()
-df = df.drop_duplicates()
-
-# df = pd.read_csv('/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/LN_results_mp_famt.csv')
+# df = pd.concat([f1,f2,f3], axis=0)
 # df = df.dropna()
 # df = df.drop_duplicates()
+
+df = pd.read_csv('/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/LN_results_new_10k.csv')
+df = df.dropna()
+df = df.drop_duplicates()
 
 #-------------------------------------------------------------------------------------------------
 #seperate each field from the string

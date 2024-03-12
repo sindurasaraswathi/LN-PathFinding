@@ -550,7 +550,7 @@ if __name__ == '__main__':
     # with open("data1.pickle", 'rb') as f:
     #     work = pickle.load(f)
     
-    pool = mp.Pool(processes=4)
+    pool = mp.Pool(processes=8)
     a = pool.starmap(callable, work)
     result_list.append(a)
     
