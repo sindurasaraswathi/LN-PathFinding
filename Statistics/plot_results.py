@@ -159,11 +159,11 @@ def fee_df(val, name, step):
         amount_list.append(list(data['amount']))
     return fee_list, fee_med, amount_list
     
-       
+     
 for a in algo:
-    pdf = pd.DataFrame(columns=['avg amount', 'avg path length', 'avg median fee'])
+    pdf = pd.DataFrame(columns=['avg amount', 'avg path length', 'median fee'])
     grp_val = df1[[f'{a}fee', 'amount']].sort_values('amount').groupby('amount')
-    pth_grp = df1[[f'{a}pthlnt', 'amount']].sort_values('amount').groupby('amount').mean()
+    pth_grp = df1[df1[f'{a}tp']=='Success'][[f'{a}pthlnt', 'amount']].sort_values('amount').groupby('amount').mean()
     for fltr in ['Success', 'Overall']:
         if fltr == 'Success':
             val = df1[df1[f'{a}tp']=='Success'][[f'{a}fee', 'amount']]
@@ -172,8 +172,10 @@ for a in algo:
         name = f'{a}fee'
         step = 1
         fee_list, fee_med, amount_list = fee_df(val, name, step)
-        # plot_graph(fee_list, 0, 'box', False, True, f'{a} Fee vs Amount ({fltr})', 'Amount', 'Fee')
-        # plot_graph(range(len(fee_med)), fee_med,'scatter', False, True, f'{a} Median Fee vs Amount ({fltr})', 'Amount', 'Fee')
+        if fltr == 'Success':
+            fval = fee_med
+        plot_graph(fee_list, 0, 'box', False, True, f'{a} Fee vs Amount ({fltr})', 'Amount', 'Fee')
+        plot_graph(range(len(fee_med)), fee_med,'scatter', False, True, f'{a} Median Fee vs Amount ({fltr})', 'Amount', 'Fee')
         
     val = []
     key = []
@@ -187,13 +189,11 @@ for a in algo:
     for j in range(8):
         pval = []
         pkey = []
-        fval = []
         for i in pth_grp.index:
             if i>10**j and i<=10**(j+1):
                 pkey.append(i)
                 pval.append(pth_grp.loc[i][f'{a}pthlnt'])
-                fval.append(grp_val.get_group(i)[f'{a}fee'].median())
-        pdf.loc[j] = [mean(pkey), mean(pval), mean(fval)]
+        pdf.loc[j] = [mean(pkey), mean(pval), fval[j]]
     print(a,'\n', tabulate(pdf, headers = 'keys', tablefmt = 'psql',showindex=True))
     
         # for i in range(len(amount_list)):
@@ -205,9 +205,10 @@ for a in algo:
         #     val.append(temp)
 # plot_graph(val, 0, 'box', False, False, f'{a} Fee vs Amount ({fltr})', 'Amount', 'Fee')
 
-plt.boxplot(val, showfliers=False)
-plt.xticks(range(1,len(key)+1), key)
-plt.show()
+    plt.boxplot(val, showfliers=False)
+    plt.title(a)
+    plt.xticks(range(1,len(key)+1), key)
+    plt.show()
 
 #-------------------------------------------------------------------------------------------------
 def sns_plot(data, kind, xlog, ylog, title, xlabel, ylabel):

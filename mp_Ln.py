@@ -21,7 +21,7 @@ import configparser
 import csv
 from ordered_set import OrderedSet
 import multiprocessing as mp
-import pickle
+# import pickle
 
 startTime = datetime.datetime.now()
  
@@ -374,7 +374,7 @@ def callable(source, target, amt, result, name):
     def ldk_combined_penalty(a, neg_log, liquidity_penalty_mul, liquidity_penalty_amt_mul):
         neg_log = min(neg_log, 2*2048)
         liq_penalty = neg_log * liquidity_penalty_mul/2048
-        amt_penalty = neg_log * liquidity_penalty_amt_mul * a /(2048 * 2**20)
+        amt_penalty = neg_log * liquidity_penalty_amt_mul * a/(2048 * 2**20)
         return liq_penalty + amt_penalty
     
     
@@ -387,12 +387,12 @@ def callable(source, target, amt, result, name):
             min_liq = min_liq/cap
             max_liq = max_liq/cap
             a = a/cap
-            num = (max_liq-0.5)**3 - (a-0.5)**3
-            den = (max_liq-0.5)**3 - (min_liq-0.5)**3
+            num = ((max_liq-0.5)**3) - ((a-0.5)**3)
+            den = ((max_liq-0.5)**3) - ((min_liq-0.5)**3)
             billionish = 1024**3
             num = (num*billionish) + 1
             den = (den*billionish) + 1
-        if (success_flag and min_liquidity) == 0 and den<((2**64)-1)/21:
+        if ((success_flag and min_liquidity) == 0) and den<(((2**64)-1)/21):
             den = den*21/16
         return num, den
             
@@ -408,7 +408,7 @@ def callable(source, target, amt, result, name):
             res = ldk_combined_penalty(a, 2*2048, liquidity_penalty_multiplier, liquidity_penalty_amt_multiplier)
         else:
             (num, den) = ldk_prob(a, min_liquidity, max_liquidity, capacity, False)
-            if (den-num)<den/64:
+            if (den-num)<(den/64):
                 res = 0
             else:
                 neg_log = ldk_neg_log10(num, den)
@@ -596,7 +596,7 @@ if __name__ == '__main__':
             amt = int(config['General']['amount'])
             
         elif amt_type == 'random':
-            k = (i%8)+1
+            k = (i%6)+1
             amt = rn.randint(10**(k-1), 10**k)
             
         result = {}
@@ -625,7 +625,7 @@ if __name__ == '__main__':
     # with open("data1.pickle", 'rb') as f:
     #     work = pickle.load(f)
     
-    pool = mp.Pool(processes=4)
+    pool = mp.Pool(processes=8)
     a = pool.starmap(callable, work)
     result_list.append(a)
     
