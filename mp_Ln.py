@@ -265,7 +265,7 @@ def callable(source, target, amt, result, name):
         global amt_dict, fee_dict
         fee = G.edges[u,v]["BaseFee"] + amount*G.edges[u,v]["FeeRate"]
         fee_dict[(u,v)] = fee
-        if u==source or v==target:
+        if u==source:
             fee_dict[(u,v)] = 0
         amt_dict[(u,v)] = amount+fee
      
@@ -301,10 +301,13 @@ def callable(source, target, amt, result, name):
     
     def cln_cost(v,u,d):
         compute_fee(v,u,d)
-        cap = G.egdes[u,v]['capacity']
+        cap = G.edges[u,v]['capacity']
         fee = fee_dict[(u,v)]
         curr_amt = amt_dict[(u,v)] - fee
-        cap_bias = math.log10(cap+1) - math.log10(cap+1-curr_amt)
+        try:
+            cap_bias = math.log(cap+1) - math.log(cap+1-curr_amt)
+        except:
+            cap_bias = float('inf')
         cost = (fee+((curr_amt*rf_cln*G.edges[u,v]["Delay"])/(blk_per_year*100))+1)*(cap_bias+1)
         return cost
     
@@ -631,7 +634,7 @@ if __name__ == '__main__':
     # with open("data1.pickle", 'rb') as f:
     #     work = pickle.load(f)
     
-    pool = mp.Pool(processes=8)
+    pool = mp.Pool(processes=4)
     a = pool.starmap(callable, work)
     result_list.append(a)
     

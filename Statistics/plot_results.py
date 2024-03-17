@@ -26,8 +26,8 @@ plt.style.use('ggplot')
 # df = df.dropna()
 # df = df.drop_duplicates()
 
-df = pd.read_csv('/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/LN_results_new_10k.csv')
-df = df.dropna()
+df = pd.read_csv('LN_results_new_1k.csv')
+df = df.fillna("[[],0,0,0,'Failure']")
 df = df.drop_duplicates()
 
 #-------------------------------------------------------------------------------------------------
@@ -84,7 +84,7 @@ for a in algo:
     sdf[a] = sdf[a]*100/sdf['Amount']
 sdf['Amount'] = sdf['Amount']*100/sdf['Amount']
 # sdf['Bins'] = [f'{i}-{i+1}' for i in range(8)]
-sdf.plot(kind = 'bar')
+sdf.plot(kind='bar')
 plt.ylabel('Count')
 plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 plt.show()

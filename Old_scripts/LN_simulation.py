@@ -63,6 +63,13 @@ locked_funds_risk = float(config['Eclair']['locked_funds_risk'])
 #LDK
 base_penalty = float(config['LDK']['base_penalty'])
 multiplier = float(config['LDK']['multiplier'])
+linear_success_prob = False
+min_liq_offset = 0
+max_liq_offset = 0
+liquidity_penalty_multiplier = 30000/1000
+liquidity_penalty_amt_multiplier = 192/1000
+hist_liquidity_penalty_multiplier = 10000/1000
+hist_liquidity_penalty_amt_multiplier = 64/1000
 
 #---------------------------------------------------------------------------
 def make_graph(G):
@@ -255,9 +262,11 @@ def sub_func(u,v, amount):
     global amt_dict, fee_dict
     fee = G.edges[u,v]["BaseFee"] + amount*G.edges[u,v]["FeeRate"]
     fee_dict[(u,v)] = fee
+    if u==source:
+        fee_dict[(u,v)] = 0
     amt_dict[(u,v)] = amount+fee
  
-            
+
 def compute_fee(v,u,d):
     global fee_dict, amt_dict, cache_node, visited
     if v == target:
@@ -289,7 +298,14 @@ def lnd_cost(v,u,d):
 
 def cln_cost(v,u,d):
     compute_fee(v,u,d)
-    cost = amt_dict[(u,v)]*(1+(rf_cln*G.edges[u,v]["Delay"])/(blk_per_year*100))+1
+    cap = G.edges[u,v]['capacity']
+    fee = fee_dict[(u,v)]
+    curr_amt = amt_dict[(u,v)] - fee
+    try:
+        cap_bias = math.log(cap+1) - math.log(cap+1-curr_amt)
+    except:
+        cap_bias = float('inf')
+    cost = (fee+((curr_amt*rf_cln*G.edges[u,v]["Delay"])/(blk_per_year*100))+1)*(cap_bias+1)
     return cost
 
 
@@ -357,14 +373,80 @@ def eclair_cost(v,u,d):
     return cost
 
 
+def ldk_neg_log10(num, den):
+    return 2048*(math.log10(den) - math.log10(num))
+   
+def ldk_combined_penalty(a, neg_log, liquidity_penalty_mul, liquidity_penalty_amt_mul):
+    neg_log = min(neg_log, 2*2048)
+    liq_penalty = neg_log * liquidity_penalty_mul/2048
+    amt_penalty = neg_log * liquidity_penalty_amt_mul * a/(2048 * 2**20)
+    return liq_penalty + amt_penalty
+
+
+def ldk_prob(a, min_liq, max_liq, cap, success_flag):
+    min_liquidity = min_liq
+    if linear_success_prob:
+        num = max_liq - a
+        den = max_liq - min_liq + 1
+    else:
+        min_liq = min_liq/cap
+        max_liq = max_liq/cap
+        a = a/cap
+        num = ((max_liq-0.5)**3) - ((a-0.5)**3)
+        den = ((max_liq-0.5)**3) - ((min_liq-0.5)**3)
+        billionish = 1024**3
+        num = (num*billionish) + 1
+        den = (den*billionish) + 1
+    if ((success_flag and min_liquidity) == 0) and den<(((2**64)-1)/21):
+        den = den*21/16
+    return num, den
+        
+
+def liq_penalty(v,u):
+    capacity = G.edges[u,v]["capacity"]
+    max_liquidity = capacity - max_liq_offset
+    min_liquidity = min(min_liq_offset, max_liquidity)
+    a = amt_dict[(u,v)]
+    if  a <= min_liquidity:
+        res = 0
+    elif a >= max_liquidity:
+        res = ldk_combined_penalty(a, 2*2048, liquidity_penalty_multiplier, liquidity_penalty_amt_multiplier)
+    else:
+        (num, den) = ldk_prob(a, min_liquidity, max_liquidity, capacity, False)
+        if (den-num)<(den/64):
+            res = 0
+        else:
+            neg_log = ldk_neg_log10(num, den)
+            res = ldk_combined_penalty(a, neg_log, liquidity_penalty_multiplier, liquidity_penalty_amt_multiplier)
+    if a >= capacity:
+        res = res + ldk_combined_penalty(a, 2*2048, hist_liquidity_penalty_multiplier, hist_liquidity_penalty_amt_multiplier)
+        return res
+    if hist_liquidity_penalty_multiplier != 0 or hist_liquidity_penalty_amt_multiplier!=0:
+        (num, den) = ldk_prob(a, 0, capacity, capacity, True)
+        neg_log = ldk_neg_log10(num, den)
+        res = res + ldk_combined_penalty(a, neg_log, hist_liquidity_penalty_multiplier, hist_liquidity_penalty_amt_multiplier)
+    return res
+
+def final_penalty(v,u):
+    htlc_max = G.edges[u,v]["htlc_max"]
+    anti_probing_penalty = 0
+    if htlc_max >= G.edges[u,v]["capacity"]/2:
+        anti_probing_penalty = 250/1000
+    penalty_base = base_penalty/1000 + ((multiplier/1000)*amt_dict[(u,v)])/2**30
+    penalty_liquidity = liq_penalty(v,u)
+    penalty_total = penalty_base + penalty_liquidity + anti_probing_penalty
+    return penalty_total
+        
+
 def ldk_cost(v,u,d):
     htlc_minimum = G.edges[u,v]['htlc_min']
+    # curr_min = max(nextHopHtlcmin, htlc_minimum)
+    htlc_fee = htlc_minimum * G.edges[u,v]['FeeRate'] + G.edges[u,v]['BaseFee']
+    path_htlc_minimum = htlc_fee + htlc_minimum
     compute_fee(v,u,d)
-    path_htlc_minimum = max(htlc_minimum+fee_dict[(u,v)], htlc_minimum)
-    penalty = base_penalty/1000 + ((multiplier/1000)*amt_dict[(u,v)])/2**30
+    penalty = final_penalty(v,u)
     cost = max(fee_dict[(u,v)], path_htlc_minimum) + penalty
     return cost
-
 
 def release_locked(j, path):
     while j>=0:
@@ -461,18 +543,18 @@ def node_classifier():
     for i in node_cap.index:
         chan_cnt = src_count[i]
         cap = node_cap.loc[i,'satoshis']
-        if cap >= 10**6 and chan_cnt>200:
+        if cap >= 10**6 and chan_cnt>5:
             well_node.append(node_num[i])
-        elif cap > 10**4 and cap < 10**6 and chan_cnt>3 and chan_cnt<=200:
+        elif cap > 10**4 and cap < 10**6 and chan_cnt>5:
             fair_node.append(node_num[i])
-        else:
+        elif chan_cnt<=5:
             poor_node.append(node_num[i])            
     return well_node, fair_node, poor_node
 
 
 def node_selector(node_type):
     if node_type == 'well':
-         return rn.choice(well_node)
+        return rn.choice(well_node)
     elif node_type == 'fair':
         return rn.choice(fair_node)
     elif node_type == 'poor':
@@ -481,7 +563,7 @@ def node_selector(node_type):
         return rn.randint(0,13129)
     
     
-def amt_selector():
+def node_ok(source, target):
     src_max = 0
     tgt_max = 0
     for edges in G.out_edges(source):
@@ -489,32 +571,35 @@ def amt_selector():
     for edges in G.in_edges(target):
         tgt_max = max(tgt_max, G.edges[edges]['Balance'])
     upper_bound = int(min(src_max, tgt_max))
-    if upper_bound < 1:
-        return 0
-    rand_exp = rn.uniform(0, math.log10(upper_bound))
-    return int(10**rand_exp)
+    if amt <= upper_bound:
+        return True
+    else:
+        return False
     
-            
     
-algo = {'LND':lnd_cost, 'CLN':cln_cost, 'LDK':ldk_cost, 'Eclair':eclair_cost}   
+work = []              
 result_list = [] 
+algo = {'LND':lnd_cost, 'CLN':cln_cost, 'LDK':ldk_cost, 'Eclair':eclair_cost} 
 well_node, fair_node, poor_node = node_classifier()
 i = 0
 while i<epoch:
+    if amt_type == 'fixed':
+        amt = int(config['General']['amount'])
+        
+    elif amt_type == 'random':
+        k = (i%8)+1
+        amt = rn.randint(10**(k-1), 10**k)
+        
     result = {}
     source = -1
     target = -1
     while (target == source or (source not in G.nodes()) or (target not in G.nodes())):
         source = node_selector(src_type)
         target = node_selector(dst_type)
-    if amt_type == 'random':
-        # k = (i%7)+1
-        # amt = rn.randint(10**(k-1), 10**k)
-        amt = amt_selector()
-        if amt == 0:
-            continue
-    else:
-        amt = int(config['General']['amount'])
+    
+    if not(node_ok(source, target)):
+        continue       
+                    
     print("\nSource = ",source, "Target = ", target, "Amount=", amt, 'Epoch =', i)
     print("----------------------------------------------")
     result['Source'] = source
