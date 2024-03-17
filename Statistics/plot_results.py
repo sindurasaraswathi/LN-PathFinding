@@ -26,7 +26,7 @@ plt.style.use('ggplot')
 # df = df.dropna()
 # df = df.drop_duplicates()
 
-df = pd.read_csv('LN_results_new_1k.csv')
+df = pd.read_csv('LN_results_new_10k.csv')
 df = df.fillna("[[],0,0,0,'Failure']")
 df = df.drop_duplicates()
 
