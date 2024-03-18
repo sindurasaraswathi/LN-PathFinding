@@ -38,8 +38,8 @@ src_type = config['General']['source_type']
 dst_type = config['General']['target_type']
 amt_type = config['General']['amount_type']
 #LND
-attemptcost = float(config['LND']['attemptcost'])
-attemptcostppm = float(config['LND']['attemptcostppm'])
+attemptcost = int(config['LND']['attemptcost'])/1000
+attemptcostppm = int(config['LND']['attemptcostppm'])
 timepref = float(config['LND']['timepref'])
 apriori = float(config['LND']['apriori'])
 rf = float(config['LND']['riskfactor'])
