@@ -313,7 +313,7 @@ def callable(source, target, amt, result, name):
     
     
     def normalize(value, minm, maxm):
-        norm = 0.00001 + 0.99998 * (min(max(minm,value), maxm))/(maxm - minm)
+        norm = 0.00001 + 0.99998 * (min(max(minm,value), maxm) - minm)/(maxm - minm)
         return norm
     
     
