@@ -643,7 +643,7 @@ if __name__ == '__main__':
             amt = int(config['General']['amount'])
             
         elif amt_type == 'random':
-            k = (i%8)+1
+            k = (i%8)+1 #i%6 for fair node else i%8
             amt = rn.randint(10**(k-1), 10**k)
             
         result = {}

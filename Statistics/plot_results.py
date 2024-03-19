@@ -85,7 +85,7 @@ for a in algo:
     sdf[a] = sdf[a]*100/sdf['Amount']
 sdf['Amount'] = sdf['Amount']*100/sdf['Amount']
 # sdf['Bins'] = [f'{i}-{i+1}' for i in range(8)]
-sdf.plot(kind='bar')
+sdf[sdf.columns[0:-1]].plot(kind='bar')
 plt.xlabel('Amount bins')
 plt.ylabel('percentage')
 plt.title('Success Rate percentage')
@@ -167,7 +167,7 @@ for a in algo:
     pdf = pd.DataFrame(columns=['avg amount', 'avg path length', 'median fee'])
     grp_val = df1[[f'{a}fee', 'amount']].sort_values('amount').groupby('amount')
     pth_grp = df1[df1[f'{a}tp']=='Success'][[f'{a}pthlnt', 'amount']].sort_values('amount').groupby('amount').mean()
-    for fltr in ['Success', 'Overall']:
+    for fltr in ['Success']:
         if fltr == 'Success':
             val = df1[df1[f'{a}tp']=='Success'][[f'{a}fee', 'amount']]
         else:
