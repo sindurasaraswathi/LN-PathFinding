@@ -26,7 +26,7 @@ plt.style.use('ggplot')
 # df = df.dropna()
 # df = df.drop_duplicates()
 
-df = pd.read_csv('LN_results_new_10k.csv')
+df = pd.read_csv('/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/LN_results_new_10k.csv')
 df = df.fillna("[[],0,0,0,'Failure']")
 df = df.drop_duplicates()
 
@@ -42,8 +42,9 @@ def extract_field(num, col):
 #-------------------------------------------------------------------------------------------------
 #store values (fee, delay, pathlength, throughput) in df1 dataframe
 df1 = pd.DataFrame()
+
 df1['amount'] = df['Amount']
-algo = ['LND', 'CLN','LDK', 'Eclair_case1', 'Eclair_case2', 'Eclair_case3']
+algo = list(df.columns[3:])
 for a in algo:
     df1[f'{a}fee'] = extract_field(1, a)
     df1[f'{a}dly'] = extract_field(2, a)
@@ -85,7 +86,9 @@ for a in algo:
 sdf['Amount'] = sdf['Amount']*100/sdf['Amount']
 # sdf['Bins'] = [f'{i}-{i+1}' for i in range(8)]
 sdf.plot(kind='bar')
-plt.ylabel('Count')
+plt.xlabel('Amount bins')
+plt.ylabel('percentage')
+plt.title('Success Rate percentage')
 plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 plt.show()
 
@@ -205,10 +208,10 @@ for a in algo:
         #     val.append(temp)
 # plot_graph(val, 0, 'box', False, False, f'{a} Fee vs Amount ({fltr})', 'Amount', 'Fee')
 
-    plt.boxplot(val, showfliers=False)
-    plt.title(a)
-    plt.xticks(range(1,len(key)+1), key)
-    plt.show()
+    # plt.boxplot(val, showfliers=False)
+    # plt.title(a)
+    # plt.xticks(range(1,len(key)+1), key)
+    # plt.show()
 
 #-------------------------------------------------------------------------------------------------
 def sns_plot(data, kind, xlog, ylog, title, xlabel, ylabel):
@@ -227,7 +230,7 @@ def sns_plot(data, kind, xlog, ylog, title, xlabel, ylabel):
     plt.ylabel(ylabel)
     plt.show()
 
-data = df1[['LNDpthlnt', 'LDKpthlnt', 'CLNpthlnt', 'Eclair_case1pthlnt', 'Eclair_case2pthlnt', 'Eclair_case3pthlnt']]
+data = df1[[f'{a}pthlnt' for a in algo]]
 # for a in algo:
 #     data = df1[df1[f'{a}tp']=='Success'][f'{a}pthlnt']
 #     path_avg.append(data.mean())
@@ -237,9 +240,9 @@ sns_plot(data, 'kde', False, False, 'Path length (KDE)', '', '')
 # print(data.mean())
 
 
-data = df1[['LNDdly', 'LDKdly', 'CLNdly', 'Eclair_case1dly', 'Eclair_case2dly', 'Eclair_case3dly']]
+data = df1[[f'{a}dly' for a in algo]]
 print(data.mean())
-data=df1[['LNDfee', 'LDKfee', 'CLNfee', 'Eclair_case1fee', 'Eclair_case2fee', 'Eclair_case3fee']]
+data=df1[[f'{a}fee' for a in algo]]
 print(data.mean())
 
 
