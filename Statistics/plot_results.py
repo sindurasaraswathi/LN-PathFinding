@@ -26,13 +26,8 @@ plt.style.use('ggplot')
 # df = df.dropna()
 # df = df.drop_duplicates()
 
-<<<<<<< HEAD
 # df = pd.read_csv('/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/LN_results_new_10k.csv')
-
-df = pd.read_csv('C:/Users/sindu/Work/UNCC Research/GIT_LN/LN-PathFinding/New_MP_results/LN_results_w_f.csv')
-=======
 df = pd.read_csv('/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/LN_results_10k.csv')
->>>>>>> 81a9a374897bd6a196b8927c24768b6f59f40fbf
 df = df.fillna("[[],0,0,0,'Failure']")
 df = df.drop_duplicates()
 

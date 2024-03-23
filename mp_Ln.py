@@ -66,13 +66,14 @@ locked_funds_risk = float(config['Eclair']['locked_funds_risk'])
 #LDK
 base_penalty = float(config['LDK']['base_penalty'])
 multiplier = float(config['LDK']['multiplier'])
-linear_success_prob = False
-min_liq_offset = 0
-max_liq_offset = 0
-liquidity_penalty_multiplier = 30000/1000
-liquidity_penalty_amt_multiplier = 192/1000
-hist_liquidity_penalty_multiplier = 10000/1000
-hist_liquidity_penalty_amt_multiplier = 64/1000
+linear_success_prob = config['LDK']['linear_prob']
+min_liq_offset = float(config['LDK']['min_liq_offset'])
+max_liq_offset = float(config['LDK']['max_liq_offset'])
+liquidity_penalty_multiplier = float(config['LDK']['l_pen_mul'])/1000
+liquidity_penalty_amt_multiplier = float(config['LDK']['l_pen_amt_mul'])/1000
+hist_liquidity_penalty_multiplier = float(config['LDK']['h_pen_mul'])/1000
+hist_liquidity_penalty_amt_multiplier = float(config['LDK']['h_pen_amt_mul'])/1000
+
 
 #---------------------------------------------------------------------------
 def make_graph(G):
@@ -422,7 +423,7 @@ def callable(source, target, amt, result, name):
     
     def ldk_prob(a, min_liq, max_liq, cap, success_flag):
         min_liquidity = min_liq
-        if linear_success_prob:
+        if linear_success_prob == 'True':
             num = max_liq - a
             den = max_liq - min_liq + 1
         else:
