@@ -26,7 +26,9 @@ plt.style.use('ggplot')
 # df = df.dropna()
 # df = df.drop_duplicates()
 
-df = pd.read_csv('/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/LN_results_new_10k.csv')
+# df = pd.read_csv('/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/LN_results_new_10k.csv')
+
+df = pd.read_csv('C:/Users/sindu/Work/UNCC Research/GIT_LN/LN-PathFinding/New_MP_results/LN_results_w_f.csv')
 df = df.fillna("[[],0,0,0,'Failure']")
 df = df.drop_duplicates()
 
@@ -51,11 +53,21 @@ for a in algo:
     df1[f'{a}pthlnt'] = extract_field(3, a)
     df1[f'{a}tp'] = extract_field(4, a)
 
+color = ['#1f77b4',  # Blue
+               '#ff7f0e',  # Orange
+               '#2ca02c',  # Green
+               '#d62728',  # Red
+               '#9467bd',  # Purple
+               '#8c564b',  # Brown
+               '#e377c2',  # Pink
+               '#7f7f7f',  # Gray
+               '#bcbd22',  # Yellow
+               '#17becf']  # Cyan
 #-------------------------------------------------------------------------------------------------
 srate = {}
 frate = {}
 start = 0
-end = 8
+end = 6
 step = 1
 #calculate the count of success and failure in the bin of amount
 for a in algo:
@@ -85,7 +97,7 @@ for a in algo:
     sdf[a] = sdf[a]*100/sdf['Amount']
 sdf['Amount'] = sdf['Amount']*100/sdf['Amount']
 # sdf['Bins'] = [f'{i}-{i+1}' for i in range(8)]
-sdf[sdf.columns[0:-1]].plot(kind='bar')
+sdf[sdf.columns[0:-1]].plot(kind='bar', color=color)
 plt.xlabel('Amount bins')
 plt.ylabel('percentage')
 plt.title('Success Rate percentage')
@@ -104,7 +116,7 @@ def df_plot(data, amt_bins, algo, title, xlabel, ylabel):
     ratio_df = pd.DataFrame()
     for a in algo:
         ratio_df[a] = df_temp[a]/df_temp['Amount']
-    ratio_df.plot()
+    ratio_df.plot(color=color)
     # df_temp.plot(kind='bar')
     plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     plt.title(title)
@@ -114,7 +126,7 @@ def df_plot(data, amt_bins, algo, title, xlabel, ylabel):
 
 df_plot(srate, amt_bins, algo, 'Success Rate', 'Amount bins', 'Ratio')
 # df_plot(frate, amt_bins, algo, 'Failure Rate', 'Amount bins', 'Ratio')
-pd.DataFrame(srate).plot(kind='bar')
+pd.DataFrame(srate).plot(kind='bar', color=color)
 plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 plt.title('Success Rate')
 plt.xlabel('Amount bins')
@@ -128,7 +140,7 @@ def plot_graph(x, y, kind, xlog, ylog, title, xlabel, ylabel):
     if kind == 'scatter':
         ax.scatter(x,y)
     elif kind == 'box':
-        ax.boxplot(x, showfliers=False, whis = 0.0, showmeans=True)
+        ax.boxplot(x, showfliers=False, whis = 0.0, showmeans=False)
     plt.title(title)
     if xlog:
         plt.xscale('log')
@@ -140,7 +152,7 @@ def plot_graph(x, y, kind, xlog, ylog, title, xlabel, ylabel):
     
     
 def fee_df(val, name, step):
-    end = 8
+    end = 6
     fee_list = []
     count = []
     fee_med = []
@@ -177,8 +189,8 @@ for a in algo:
         fee_list, fee_med, amount_list = fee_df(val, name, step)
         if fltr == 'Success':
             fval = fee_med
-        plot_graph(fee_list, 0, 'box', False, True, f'{a} Fee vs Amount ({fltr})', 'Amount', 'Fee')
-        plot_graph(range(len(fee_med)), fee_med,'scatter', False, True, f'{a} Median Fee vs Amount ({fltr})', 'Amount', 'Fee')
+        plot_graph(fee_list, 0, 'box', False, True, f'{a} Fee', 'Amount', 'Fee')
+        plot_graph(range(len(fee_med)), fee_med,'scatter', False, True, f'{a} Median Fee', 'Amount', 'Fee')
         
     val = []
     key = []
@@ -186,18 +198,20 @@ for a in algo:
         if i%50 == 0 and i<=1000 and i>=100:
             val.append(list(j[f'{a}fee']))
             key.append(i)
-                
-                
-         
-    for j in range(8):
+                                  
+    for j in range(6):
         pval = []
         pkey = []
         for i in pth_grp.index:
             if i>10**j and i<=10**(j+1):
                 pkey.append(i)
                 pval.append(pth_grp.loc[i][f'{a}pthlnt'])
-        pdf.loc[j] = [mean(pkey), mean(pval), fval[j]]
+        if pkey == []:
+            pdf.loc[j] = ['','','']
+        else:
+            pdf.loc[j] = [mean(pkey), mean(pval), fval[j]]
     print(a,'\n', tabulate(pdf, headers = 'keys', tablefmt = 'psql',showindex=True))
+
     
         # for i in range(len(amount_list)):
         #     amt_list = list(OrderedSet(amount_list[i]))
@@ -219,7 +233,7 @@ def sns_plot(data, kind, xlog, ylog, title, xlabel, ylabel):
     if kind != 'hist':
         sns.displot(data, kind=kind)
     else:
-        ax.hist(data)
+        ax.hist(data, color=color[:7])
         plt.legend(algo)
     if xlog:
         plt.xscale('log')
@@ -230,13 +244,14 @@ def sns_plot(data, kind, xlog, ylog, title, xlabel, ylabel):
     plt.ylabel(ylabel)
     plt.show()
 
+
 data = df1[[f'{a}pthlnt' for a in algo]]
 # for a in algo:
 #     data = df1[df1[f'{a}tp']=='Success'][f'{a}pthlnt']
 #     path_avg.append(data.mean())
 # print(path_avg)
-sns_plot(data, 'hist', False, False, 'Path length', '', '')
-sns_plot(data, 'kde', False, False, 'Path length (KDE)', '', '')
+sns_plot(data, 'hist', False, False, 'Path Length', 'Path Length', 'Count')
+# sns_plot(data, 'kde', False, False, 'Path length (KDE)', '', '')
 # print(data.mean())
 
 
