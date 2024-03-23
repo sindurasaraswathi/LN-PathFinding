@@ -103,8 +103,11 @@ def make_graph(G):
         G.edges[u,v]['htlc_min'] = int(re.split(r'(\d+)', df['htlc_minimum_msat'][i])[1])/1000
         G.edges[u,v]['htlc_max'] = int(re.split(r'(\d+)', df['htlc_maximum_msat'][i])[1])/1000
         G.edges[u,v]['LastFailure'] = 25
-        x = rn.uniform(0, int(df['satoshis'][i]))
-        G.edges[u,v]['Balance'] = x
+        if (v,u) in G.edges:
+            G.edges[u,v]['Balance'] = G.edges[u,v]['capacity'] - G.edges[v,u]['Balance']
+        else:
+            x = int(rn.uniform(0, int(df['satoshis'][i])))
+            G.edges[u,v]['Balance'] = x            
     return G
 
       
@@ -665,12 +668,6 @@ if __name__ == '__main__':
         for algo in ['LND', 'LDK', 'CLN', 'Eclair']:
             work.append((source, target, amt, result, algo))
         i = i+1
-        
-    # # with open("data1.pickle", 'wb') as f:
-    # #     pickle.dump(work, f)
-        
-    # with open("data1.pickle", 'rb') as f:
-    #     work = pickle.load(f)
     
     pool = mp.Pool(processes=8)
     a = pool.starmap(callable, work)
