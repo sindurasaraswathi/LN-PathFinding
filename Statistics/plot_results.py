@@ -27,7 +27,7 @@ plt.style.use('ggplot')
 # df = df.drop_duplicates()
 
 # df = pd.read_csv('/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/LN_results_new_10k.csv')
-df = pd.read_csv('/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/LN_results_10k.csv')
+df = pd.read_csv('C:/Users/sindu/Work/UNCC Research/GIT_LN/LN-PathFinding/New_MP_results/LN_results_fixed.csv')
 df = df.fillna("[[],0,0,0,'Failure']")
 df = df.drop_duplicates()
 
@@ -66,7 +66,7 @@ color = ['#1f77b4',  # Blue
 srate = {}
 frate = {}
 start = 0
-end = 6
+end = 8
 step = 1
 #calculate the count of success and failure in the bin of amount
 for a in algo:
@@ -151,7 +151,7 @@ def plot_graph(x, y, kind, xlog, ylog, title, xlabel, ylabel):
     
     
 def fee_df(val, name, step):
-    end = 6
+    end = 8
     fee_list = []
     count = []
     fee_med = []
@@ -198,7 +198,7 @@ for a in algo:
             val.append(list(j[f'{a}fee']))
             key.append(i)
                                   
-    for j in range(6):
+    for j in range(8):
         pval = []
         pkey = []
         for i in pth_grp.index:
