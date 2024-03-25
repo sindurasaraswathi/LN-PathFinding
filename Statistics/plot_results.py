@@ -16,18 +16,8 @@ from tabulate import tabulate
 from ordered_set import OrderedSet
 
 plt.style.use('ggplot')
-# f1 = pd.read_csv('/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/LN_results_random_mp_new.csv')
-# f2 = pd.read_csv('/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/LN_results_random_mp_large.csv')
-# f2 = f2[f2['Amount']>(10**6)]
-# f3 = pd.read_csv('/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/LN_results_random_mp_large_104.csv')
-# f3 = f3[f3['Amount']>(10**5)]
-
-# df = pd.concat([f1,f2,f3], axis=0)
-# df = df.dropna()
-# df = df.drop_duplicates()
-
 # df = pd.read_csv('/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/LN_results_new_10k.csv')
-df = pd.read_csv('C:/Users/sindu/Work/UNCC Research/GIT_LN/LN-PathFinding/New_MP_results/LN_results_fixed.csv')
+df = pd.read_csv('C:/Users/sindu/Work/UNCC Research/GIT_LN/LN-PathFinding/New_MP_results/LN_results_10k.csv')
 df = df.fillna("[[],0,0,0,'Failure']")
 df = df.drop_duplicates()
 
@@ -175,9 +165,10 @@ def fee_df(val, name, step):
     
      
 for a in algo:
-    pdf = pd.DataFrame(columns=['avg amount', 'avg path length', 'median fee'])
+    pdf = pd.DataFrame(columns=['avg amount', 'avg path length', 'median fee', 'avg delay'])
     grp_val = df1[[f'{a}fee', 'amount']].sort_values('amount').groupby('amount')
     pth_grp = df1[df1[f'{a}tp']=='Success'][[f'{a}pthlnt', 'amount']].sort_values('amount').groupby('amount').mean()
+    dly_grp = df1[df1[f'{a}tp']=='Success'][[f'{a}dly', 'amount']].sort_values('amount').groupby('amount').mean()
     for fltr in ['Success']:
         if fltr == 'Success':
             val = df1[df1[f'{a}tp']=='Success'][[f'{a}fee', 'amount']]
@@ -201,14 +192,17 @@ for a in algo:
     for j in range(8):
         pval = []
         pkey = []
+        pdly = []
         for i in pth_grp.index:
             if i>10**j and i<=10**(j+1):
                 pkey.append(i)
                 pval.append(pth_grp.loc[i][f'{a}pthlnt'])
+                pdly.append(dly_grp.loc[i][f'{a}dly'])
         if pkey == []:
-            pdf.loc[j] = ['','','']
+            pdf.loc[j] = ['','','', '']
         else:
-            pdf.loc[j] = [mean(pkey), mean(pval), fval[j]]
+            pdf.loc[j] = [mean(pkey), mean(pval), fval[j], mean(pdly)]
+    pdf.loc[j+1] = [mean(pdf['avg amount']), mean(pdf['avg path length']), mean(pdf['median fee']), mean(pdf['avg delay'])]
     print(a,'\n', tabulate(pdf, headers = 'keys', tablefmt = 'psql',showindex=True))
 
     
@@ -268,5 +262,11 @@ print(data.mean())
 # save_df(srate, 'success_count.csv')
 # save_df(frate, 'Failure_count.csv')
 # df1.to_csv('result_data.csv')
-
-
+#--------------------------------------------------------------------------------------------
+max_suc = []
+for a in algo:
+    print(a)
+    succ = sum(srate[a])/100
+    max_suc.append(succ)
+    print(succ)
+print(max(max_suc))
