@@ -158,6 +158,7 @@ def fee_df(val, name, step):
         rrange = 10**(i)
         count.append((lrange,rrange))
         data = val[(val['amount']>lrange) & (val['amount']<=rrange)]
+        data = data+0.00000001
         fee_med.append(data[name].median())
         fee_list.append(list(data[name]))
         amount_list.append(list(data['amount']))

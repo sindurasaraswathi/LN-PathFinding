@@ -280,6 +280,33 @@ def compute_fee(v,u,d):
         sub_func(u,v,amount)
         
             
+def primitive(c, x):
+    s = 3e8
+    ecs = math.exp(-c/s)
+    exs = math.exp(-x/s)
+    excs = math.exp((x-c)/s)
+    norm = -2*ecs + 2
+    return (excs - exs)/norm
+
+
+def integral(cap, lower, upper):
+    return primitive(cap, upper) - primitive(cap, lower)
+
+
+def bimodal(cap, a_f, a_s, a):
+    prob = integral(cap, a, a_f)
+    if prob is math.nan:
+        return 0
+    reNorm = integral(cap, a_s, a_f)
+    if reNorm is math.nan or reNorm == 0:
+        return 0
+    prob /= reNorm
+    if prob>1:
+        return 1
+    if prob<0:
+        return 0
+    return prob
+
 #v - target, u - source, d - G.edges[v,u]
 def lnd_cost(v,u,d):
     global timepref
@@ -287,14 +314,18 @@ def lnd_cost(v,u,d):
     timepref *= 0.9
     defaultattemptcost = attemptcost+attemptcostppm*amt_dict[(u,v)]/1000000
     penalty = defaultattemptcost * (1/(0.5-timepref/2) - 1)
-    prob_weight = 2**G.edges[u,v]["LastFailure"]
-    prob = apriori * (1-(1/prob_weight))
+    cap = G.edges[u,v]["capacity"]
+    if case == 'apriori':
+        prob_weight = 2**G.edges[u,v]["LastFailure"]
+        prob = apriori * (1-(1/prob_weight)) 
+    elif case == 'bimodal':
+        prob = bimodal(cap, cap, 0, amt_dict[(u,v)])
     if prob == 0:
         cost = float('inf')
     else:
         cost = fee_dict[(u,v)] + G.edges[u,v]['Delay']*amt_dict[(u,v)]*rf + penalty/prob
     return cost
-        
+       
 
 def cln_cost(v,u,d):
     compute_fee(v,u,d)
@@ -469,6 +500,8 @@ def route(G, path, source, target):
             if v == target:
                 amt_list.append(amt)
             fee = G.edges[u,v]["BaseFee"] + amt_list[-1]*G.edges[u,v]["FeeRate"]
+            if  u== source:
+                fee = 0
             fee = round(fee, 5)
             a = round(amt_list[-1] + fee, 5)
             amt_list.append(a)
@@ -477,10 +510,13 @@ def route(G, path, source, target):
         path = path[::-1]
         amt_list = amt_list[::-1]
         amount = amt_list[0]
+        print(total_fee, amt_list)
         for i in range(path_length-1):
             u = path[i]
             v = path[i+1]
             fee = G.edges[u,v]["BaseFee"] + amt_list[i+1]*G.edges[u,v]["FeeRate"]
+            if  u== source:
+                fee = 0
             fee = round(fee, 5)
             if amount > G.edges[u,v]["Balance"] or amount<=0:
                 G.edges[u,v]["LastFailure"] = 0
@@ -503,15 +539,24 @@ def route(G, path, source, target):
         return "Routing Failed due to the above error"
 
 #----------------------------------------------
+def dijkstra_caller(res_name, func):
+    dist = nx2._dijkstra(G, source=target, target=source, weight = func, pred=prev_dict, paths=paths)
+    res = paths[source]
+    print("Path found by", name, res[::-1])
+    result[res_name] = route(G, res, source, target)
+    
+    
 def helper(name, func):
     global use_log, case
     try:
         print("\n**",name,"**")
         if name != 'Eclair':
-            dist = nx2._dijkstra(G, source=target, target=source, weight = func, pred=prev_dict, paths=paths)
-            res = paths[source]
-            print("Path found by", name, res[::-1])
-            result[name] = route(G, res, source, target)
+            if name == 'LND':
+                for cs in ['LND1', 'LND2']:
+                    case = config[name][cs]
+                    dijkstra_caller(cs, func)
+            else:
+                dijkstra_caller(name, func)
             
         else:
             for cs in ['Eclair_case1', 'Eclair_case2', 'Eclair_case3']:
@@ -618,7 +663,7 @@ while i<epoch:
     result_list.append(result)
     i = i+1
 
-fields = ['Source', 'Target', 'Amount', 'LND', 'CLN', 'LDK', 'Eclair_case1', 'Eclair_case2', 'Eclair_case3']
+fields = ['Source', 'Target', 'Amount', 'LND1', 'LND2', 'CLN', 'LDK', 'Eclair_case1', 'Eclair_case2', 'Eclair_case3']
 filename = config['General']['filename'] 
 with open(filename, 'w') as csvfile:
     writer = csv.DictWriter(csvfile, fieldnames=fields)
