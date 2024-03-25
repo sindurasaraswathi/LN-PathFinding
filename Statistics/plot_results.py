@@ -16,8 +16,8 @@ from tabulate import tabulate
 from ordered_set import OrderedSet
 
 plt.style.use('ggplot')
-# df = pd.read_csv('/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/LN_results_new_10k.csv')
-df = pd.read_csv('C:/Users/sindu/Work/UNCC Research/GIT_LN/LN-PathFinding/New_MP_results/LN_results_10k.csv')
+df = pd.read_csv('/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/LN_results_10k.csv')
+# df = pd.read_csv('C:/Users/sindu/Work/UNCC Research/GIT_LN/LN-PathFinding/New_MP_results/LN_results_10k.csv')
 df = df.fillna("[[],0,0,0,'Failure']")
 df = df.drop_duplicates()
 
@@ -264,10 +264,10 @@ print(data.mean())
 # save_df(frate, 'Failure_count.csv')
 # df1.to_csv('result_data.csv')
 #--------------------------------------------------------------------------------------------
-max_suc = []
-for a in algo:
-    print(a)
-    succ = sum(srate[a])/100
-    max_suc.append(succ)
-    print(succ)
-print(max(max_suc))
+# max_suc = []
+# for a in algo:
+#     print(a)
+#     succ = sum(srate[a])/100
+#     max_suc.append(succ)
+#     print(succ)
+# print(max(max_suc))
