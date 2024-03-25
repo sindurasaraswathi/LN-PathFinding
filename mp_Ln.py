@@ -508,6 +508,8 @@ def callable(source, target, amt, result, name):
                 if v == target:
                     amt_list.append(amt)
                 fee = G.edges[u,v]["BaseFee"] + amt_list[-1]*G.edges[u,v]["FeeRate"]
+                if u==source:
+                    fee = 0
                 fee = round(fee, 5)
                 a = round(amt_list[-1] + fee, 5)
                 amt_list.append(a)
@@ -520,6 +522,8 @@ def callable(source, target, amt, result, name):
                 u = path[i]
                 v = path[i+1]
                 fee = G.edges[u,v]["BaseFee"] + amt_list[i+1]*G.edges[u,v]["FeeRate"]
+                if u==source:
+                    fee = 0
                 fee = round(fee, 5)
                 if amount > G.edges[u,v]["Balance"] or amount<=0:
                     G.edges[u,v]["LastFailure"] = 0
@@ -532,9 +536,8 @@ def callable(source, target, amt, result, name):
                     G.edges[u,v]["LastFailure"] = 25
                 amount = round(amount - fee, 5)
                 if v == target and amount!=amt:
-                    print(amt_list)
                     return [path, total_fee, total_delay, path_length, 'Failure']
-                
+          
             release_locked(i-1, path)
             return [path, total_fee, total_delay, path_length, 'Success']
         except Exception as e:
