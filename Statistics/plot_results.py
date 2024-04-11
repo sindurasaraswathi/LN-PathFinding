@@ -15,8 +15,8 @@ from statistics import mean, mode, median
 from tabulate import tabulate
 from ordered_set import OrderedSet
 
-plt.style.use('ggplot')
-file = 'LN_results_p_w'
+# plt.style.use('ggplot')
+file = 'LN_results_10k'
 # df = pd.read_csv('/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/LN_results_10k.csv')
 df = pd.read_csv(f'C:/Users/sindu/Work/UNCC Research/GIT_LN/LN-PathFinding/New_MP_results/{file}.csv')
 df = df.fillna("[[],0,0,0,'Failure']")
@@ -154,9 +154,11 @@ def fee_df(val, name, step):
         rrange = 10**(i)
         count.append((lrange,rrange))
         data = val[(val['amount']>lrange) & (val['amount']<=rrange)]
-        data = data+0.00000001
-        fee_med.append(data[name].median())
-        fee_list.append(list(data[name]))
+        # data = data+0.00000001
+        fee_med.append(((data[name]+0.00000001)/data['amount']).median())
+        fee_list.append(list((data[name]+0.00000001)/data['amount']))
+        # fee_med.append((data[name]+0.00000001).mean())
+        # fee_list.append(list(data[name]+0.00000001))
         amount_list.append(list(data['amount']))
     return fee_list, fee_med, amount_list
  
@@ -169,8 +171,8 @@ for i in df1.index:
     for a in algo:
         if row[f'{a}tp'] == 'Success':
             c+=1
-    if c>4:
-        sfee = sfee.append(row, ignore_index=True)   
+    if c>3:
+        sfee =  pd.concat([sfee, pd.DataFrame([row])], ignore_index=True)  
      
 save_df = pd.DataFrame(index=['Weighted avg median fee', 'WAvg path length', 'WAvg Delay', 'avg_path', 'Avg delay'])
 for a in algo:
@@ -189,8 +191,10 @@ for a in algo:
     w_sum = 0 
     p_sum = 0
     d_sum = 0
-    total_weight = 0                          
+    total_weight = 0 
+    fee_mega = []                         
     for j in range(end):
+        fee_mega = fee_mega+fee_list[j]
         pval = []
         pkey = []
         pdly = []
@@ -217,10 +221,12 @@ for a in algo:
     print('Weighted average Timelock:', weighted_dly)
     print("Average Path Length:", mean(pdf['avg path length']))
     print("Average Timelock:", mean(pdf['avg delay']))
+    print(median(fee_mega))
     save_df[a] = [weighted_median, weighted_plength, weighted_dly, mean(pdf['avg path length']), mean(pdf['avg delay'])]
-    
-save_df.to_csv(f'{file}_stat2.csv')
-sdf.to_csv(f'{file}_stat1.csv')
+
+# save_df.to_csv(f'{file}_stat2.csv')
+# sdf.to_csv(f'{file}_stat1.csv')
+
 #-------------------------------------------------------------------------------------------------
 def sns_plot(data, kind, xlog, ylog, title, xlabel, ylabel):
     fig, ax = plt.subplots(figsize=plt.figaspect(1/3))
