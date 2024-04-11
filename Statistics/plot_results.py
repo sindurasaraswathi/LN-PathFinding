@@ -17,8 +17,8 @@ from ordered_set import OrderedSet
 
 # plt.style.use('ggplot')
 file = 'LN_results_10k'
-# df = pd.read_csv('/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/LN_results_10k.csv')
-df = pd.read_csv(f'C:/Users/sindu/Work/UNCC Research/GIT_LN/LN-PathFinding/New_MP_results/{file}.csv')
+df = pd.read_csv('/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/LN_results_10k.csv')
+# df = pd.read_csv(f'C:/Users/sindu/Work/UNCC Research/GIT_LN/LN-PathFinding/New_MP_results/{file}.csv')
 df = df.fillna("[[],0,0,0,'Failure']")
 df = df.drop_duplicates()
 
@@ -185,8 +185,8 @@ for a in algo:
     name = f'{a}fee'
     step = 1
     fee_list, fee_med, amount_list = fee_df(val, name, step)
-    plot_graph(fee_list, 0, 'box', False, True, f'{a} Fee', 'Amount', 'Fee')
-    plot_graph(range(len(fee_med)), fee_med,'scatter', False, True, f'{a} Median Fee', 'Amount', 'Fee')
+    # plot_graph(fee_list, 0, 'box', False, True, f'{a} Fee', 'Amount', 'Fee')
+    # plot_graph(range(len(fee_med)), fee_med,'scatter', False, True, f'{a} Median Fee', 'Amount', 'Fee')
         
     w_sum = 0 
     p_sum = 0
@@ -215,13 +215,13 @@ for a in algo:
     weighted_median = w_sum/total_weight
     weighted_plength = p_sum/total_weight
     weighted_dly = d_sum/total_weight
-    print(a,'\n', tabulate(pdf, headers = 'keys', tablefmt = 'psql',showindex=True))
-    print("Weighted average of median fee:", weighted_median) #(weight is the number of transactions in the bin)
-    print('Weighted average path length:', weighted_plength)
-    print('Weighted average Timelock:', weighted_dly)
-    print("Average Path Length:", mean(pdf['avg path length']))
-    print("Average Timelock:", mean(pdf['avg delay']))
-    print(median(fee_mega))
+    # print(a,'\n', tabulate(pdf, headers = 'keys', tablefmt = 'psql',showindex=True))
+    # print("Weighted average of median fee:", weighted_median) #(weight is the number of transactions in the bin)
+    # print('Weighted average path length:', weighted_plength)
+    # print('Weighted average Timelock:', weighted_dly)
+    # print("Average Path Length:", mean(pdf['avg path length']))
+    # print("Average Timelock:", mean(pdf['avg delay']))
+    print(median(fee_mega)*100)
     save_df[a] = [weighted_median, weighted_plength, weighted_dly, mean(pdf['avg path length']), mean(pdf['avg delay'])]
 
 # save_df.to_csv(f'{file}_stat2.csv')

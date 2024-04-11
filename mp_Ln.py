@@ -116,11 +116,11 @@ G = nx.DiGraph()
 G = make_graph(G)
 
 def callable(source, target, amt, result, name):
-    def tracker(path, dist, p_amt, p_dist, p_prob):
-        global amt_dict, prob_eclair
+    def tracker(path, dist, p_amt, p_dist):
+        global amt_dict
         amt_tracker = {}
         dist_tracker = {}
-        prob_tracker = {}
+        # prob_tracker = {}
         for i in range(len(path)-1):
             u = path[i+1]
             v = path[i]
@@ -132,17 +132,12 @@ def callable(source, target, amt, result, name):
                 dist_tracker[v] = dist[v]
             else:
                 dist_tracker[v] = p_dist[v]
-            if (u,v) in prob_eclair:
-                prob_tracker[(u,v)] = prob_eclair[(u,v)]
-            else:#
-                prob_tracker[(u,v)] = p_prob[(u,v)]
-    
         dist_tracker[u] = dist[u]
-        return amt_tracker, dist_tracker, prob_tracker
+        return amt_tracker, dist_tracker
     
     
     def shortest_simple_paths(G, source, target, weight):
-        global prev_dict, paths, amt_dict, fee_dict, visited, prob_eclair
+        global prev_dict, paths, amt_dict, fee_dict, visited
         if source not in G:
             raise nx.NodeNotFound(f"source node {source} not in graph")
     
@@ -157,16 +152,16 @@ def callable(source, target, amt, result, name):
         listB = PathBuffer()
         amt_holder = PathBuffer()
         dist_holder = PathBuffer()
-        prob_holder = PathBuffer()
+        # prob_holder = PathBuffer()
         prev_path = None
         prev_dist = None
         prev_amt = None
-        prev_prob = None
+        # prev_prob = None
         visited = set()
         while True:
             if not prev_path:
                 prev_dict = {}
-                prob_eclair = {} 
+                # prob_eclair = {} 
                 paths = {source:[source]}
                 dist = shortest_path_func(G, source=source, 
                                           target=target, 
@@ -175,12 +170,12 @@ def callable(source, target, amt, result, name):
                                           paths=paths)
                 path = paths[target]
                 visited = set()
-                amt_tracker, dist_tracker, prob_tracker = tracker(path, dist, prev_amt, prev_dist, prev_prob)#
+                amt_tracker, dist_tracker = tracker(path, dist, prev_amt, prev_dist)
                 length = dist_tracker[target]
                 listB.push(length, path)
                 amt_holder.push(length, amt_tracker)
                 dist_holder.push(length, dist_tracker)
-                prob_holder.push(length, prob_tracker)
+                # prob_holder.push(length, prob_tracker)
             else:
                 # global root,ignore_edges, H
                 ignore_nodes = set()
@@ -192,12 +187,12 @@ def callable(source, target, amt, result, name):
                     amt_dict = {}
                     fee_dict = {}
                     prev_dict = {}
-                    prob_eclair = {}
+                    # prob_eclair = {}
                     if root[-1] != source:
                         temp_amt = prev_amt[(root[-1], root[-2])]
                         amt_dict[root[-1], root[-2]] = temp_amt
                         prev_dict = {root[-1]:[root[-2]]}
-                        prob_eclair[(root[-1], root[-2])] = prev_prob[(root[-1], root[-2])]
+                        # prob_eclair[(root[-1], root[-2])] = prev_prob[(root[-1], root[-2])]
                     for path in listA:
                         if path[:i] == root:
                             ignore_edges.add((path[i - 1], path[i]))
@@ -217,12 +212,12 @@ def callable(source, target, amt, result, name):
                         )
                         try:
                             path = root[:-1] + paths[target]
-                            amt_tracker, dist_tracker, prob_tracker = tracker(path, dist, prev_amt, prev_dist, prev_prob)#
+                            amt_tracker, dist_tracker = tracker(path, dist, prev_amt, prev_dist)#
                             length = dist[target]
                             listB.push(root_length + length, path)
                             amt_holder.push(root_length + length, amt_tracker)
                             dist_holder.push(root_length + length, dist_tracker)
-                            prob_holder.push(root_length + length, prob_tracker)
+                            # prob_holder.push(root_length + length, prob_tracker)
                         except:
                             pass
                     except:
@@ -236,7 +231,7 @@ def callable(source, target, amt, result, name):
                 prev_path = path
                 prev_amt = amt_holder.pop()
                 prev_dist = dist_holder.pop()
-                prev_prob = prob_holder.pop()
+                # prev_prob = prob_holder.pop()
             else:
                 break
     
@@ -370,29 +365,30 @@ def callable(source, target, amt, result, name):
             prob = 1 - (hop_amt/G.edges[u,v]["capacity"])
         else:
             prob = 0
-        if v == target:
-            total_prob = prob
-        else:
-            total_prob = prob * prob_eclair[(v, prev_dict[v][0])]
-        if prob<0:
-            total_prob = 0
-        prob_eclair[(u,v)] = total_prob
+        # if v == target:
+        #     total_prob = prob
+        # else:
+        #     total_prob = prob * prob_eclair[(v, prev_dict[v][0])]
+        # if prob<0:
+        #     total_prob = 0
+        # prob_eclair[(u,v)] = total_prob
         #fee
-        total_fee = amt_dict[(u,v)] - amt
+        # total_fee = amt_dict[(u,v)] - amt
         #total CLTV
-        total_cltv = G.edges[u,v]["Delay"]
-        temp_path = paths[v]
-        for i in range(1,len(temp_path)-1):
-            p = temp_path[i+1]
-            q = temp_path[i]
-            total_cltv += G.edges[(p,q)]["Delay"]
+        # total_cltv = G.edges[u,v]["Delay"]
+        # temp_path = paths[v]
+        # for i in range(1,len(temp_path)-1):
+        #     p = temp_path[i+1]
+        #     q = temp_path[i]
+        #     total_cltv += G.edges[(p,q)]["Delay"]
         #total Amount
-        total_amount = amt_dict[(u,v)]
+        # total_amount = amt_dict[(u,v)]        
+        # total_risk_cost = total_amount * total_cltv * locked_funds_risk
+        
         #risk cost
-        risk_cost = total_amount * G.edges[u,v]["Delay"] * locked_funds_risk
-        total_risk_cost = total_amount * total_cltv * locked_funds_risk
+        risk_cost = amt_dict[(u,v)] * G.edges[u,v]["Delay"] * locked_funds_risk
         #failure cost
-        failure_cost = fail_base + total_amount * fail_rate
+        failure_cost = fail_base + amt_dict[(u,v)] * fail_rate
         if case == 'WeightRatios':
             cost = (fee_dict[(u,v)]+hopcost)*(basefactor + (ncltv*cltvfactor)+
                               (nage*agefactor)+(ncap*capfactor))
@@ -403,8 +399,8 @@ def callable(source, target, amt, result, name):
                 else:
                     cost = float('inf')
             else: 
-                if total_prob:
-                    cost = total_fee + hopcost + total_risk_cost + failure_cost/total_prob
+                if prob>0:
+                    cost = fee_dict[(u,v)] + hopcost + risk_cost + failure_cost/prob
                 else:
                     cost = float('inf')
         return cost
