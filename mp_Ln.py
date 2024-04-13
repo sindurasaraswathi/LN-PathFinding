@@ -43,6 +43,9 @@ attemptcostppm = int(config['LND']['attemptcostppm'])
 timepref = float(config['LND']['timepref'])
 apriori = float(config['LND']['apriori'])
 rf = float(config['LND']['riskfactor'])
+capfraction = float(config['LND']['capfraction'])
+smearing = float(config['LND']['smearing'])
+
 
 #CLN
 max_distance_cln = int(config['CLN']['max_distance_cln'])
@@ -318,7 +321,9 @@ def callable(source, target, amt, result, name):
         cap = G.edges[u,v]["capacity"]
         if case == 'apriori':
             prob_weight = 2**G.edges[u,v]["LastFailure"]
-            prob = apriori * (1-(1/prob_weight)) 
+            den = 1+math.exp(-(amt_dict[(u,v)] - capfraction*cap)/(smearing*cap))
+            nodeprob = apriori * (1-(0.5/den))
+            prob = nodeprob * (1-(1/prob_weight))
         elif case == 'bimodal':
             prob = bimodal(cap, cap, 0, amt_dict[(u,v)])
         if prob == 0:
