@@ -17,8 +17,8 @@ from ordered_set import OrderedSet
 
 # plt.style.use('ggplot')
 file = 'LN_results_10k'
-# df = pd.read_csv('/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/LN_results_10k.csv')
-df = pd.read_csv(f'C:/Users/sindu/Work/UNCC Research/GIT_LN/LN-PathFinding/New_MP_results/{file}.csv')
+df = pd.read_csv(f'/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/{file}.csv')
+# df = pd.read_csv(f'C:/Users/sindu/Work/UNCC Research/GIT_LN/LN-PathFinding/New_MP_results/{file}.csv')
 df = df.fillna("[[],0,0,0,'Failure']")
 df = df.drop_duplicates()
 
@@ -81,12 +81,12 @@ for a in algo:
     sdf[a] = sdf[a]*100/sdf['Txn Count']
 sdf['Txn Count'] = sdf['Txn Count']*100/sdf['Txn Count']
 # sdf['Bins'] = [f'{i}-{i+1}' for i in range(8)]
-sdf[sdf.columns[0:-1]].plot(kind='bar', color=color) #bar plot
-plt.xlabel('Amount bins')
-plt.ylabel('percentage')
-plt.title('Success Rate percentage')
-plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-plt.show()
+# sdf[sdf.columns[0:-1]].plot(kind='bar', color=color) #bar plot
+# plt.xlabel('Amount bins')
+# plt.ylabel('percentage')
+# plt.title('Success Rate percentage')
+# plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+# plt.show()
 
 sdf['Actual Txn Count'] = amt_bins
 # print(sdf.to_latex(index=False))
@@ -97,6 +97,7 @@ print('\nSuccess Rate:\n\n', tabulate(srate, headers = 'keys', tablefmt = 'psql'
 #-------------------------------------------------------------------------------------------------
 # plot data frame (line graph), pass dict to the function
 def df_plot(data, amt_bins, algo, title, xlabel, ylabel):
+    fig, ax = plt.subplots(figsize=plt.figaspect(1/3))
     df_temp = pd.DataFrame(data)
     ratio_df = pd.DataFrame()
     for a in algo:
@@ -107,17 +108,22 @@ def df_plot(data, amt_bins, algo, title, xlabel, ylabel):
     plt.title(title)
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
+    
+    xticks = [i for i in range(8)]
+    xticklabels = [rf'$10^{i}-10^{i+1}$' for i in range(8)]  
+    plt.xticks(xticks, xticklabels, rotation=0, fontsize=7)
+
     plt.show()
 
-df_plot(srate, amt_bins, algo, 'Success Rate', 'Amount bins', 'Ratio') 
+df_plot(srate, amt_bins, algo, 'Success Rate', 'Amount Bins', 'Ratio') 
 
 
-pd.DataFrame(srate).plot(kind='bar', color=color) #bar
-plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-plt.title('Success Rate')
-plt.xlabel('Amount bins')
-plt.ylabel('Count')
-plt.show()
+# pd.DataFrame(srate).plot(kind='bar', color=color) #bar
+# plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+# plt.title('Success Rate')
+# plt.xlabel('Amount bins')
+# plt.ylabel('Count')
+# plt.show()
 
 #-------------------------------------------------------------------------------------------------
 #graph types
@@ -134,6 +140,9 @@ def plot_graph(x, y, kind, xlog, ylog, title, xlabel, ylabel):
         plt.yscale('log')
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
+    xticks = [i for i in range(9)]
+    xticklabels = [''] + [rf'$10^{i}-10^{i+1}$' for i in range(8)]  
+    plt.xticks(xticks, xticklabels,fontsize=8)
     plt.show()
     
 #find median fee in the amount bin, return list of list of fees in bins, list of median fee   
@@ -185,7 +194,7 @@ for a in algo:
     name = f'{a}fee'
     step = 1
     fee_list, fee_med, amount_list = fee_df(val, name, step)
-    plot_graph(fee_list, 0, 'box', False, True, f'{a} Fee', 'Amount', 'Fee')
+    plot_graph(fee_list, 0, 'box', False, True, f'{a} Fee', 'Amount Bins', 'Fee')
     # plot_graph(range(len(fee_med)), fee_med,'scatter', False, True, f'{a} Median Fee', 'Amount', 'Fee')
         
     w_sum = 0 
