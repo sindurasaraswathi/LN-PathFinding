@@ -16,7 +16,26 @@ from tabulate import tabulate
 from ordered_set import OrderedSet
 
 # plt.style.use('ggplot')
-file = 'LN_results_bi_test2'
+#capacity fixed to 10**8
+# 'LN_results_bi_3e8_cby5'
+# "LN_results_bi_cby100" #both s c/100
+# "LN_results_bi_cby10" #both s c/10
+# "LN_results_bi_3e8_cby1000"
+#"LN_results_bi_cby1000" #both s c/1000
+
+#capacity random
+# "LN_results_bi_3logcapby1.5" Both s
+# "LN_results_bi_cby10_rncap" both s
+# "LN_results_bi_cby1000_rncap" 
+#"LN_results_bi_cby10_rncap_fixedamt" #amt= 9e6
+
+#final test
+#LN_results_bi_3e8_cby10_10k #s prob 3e8, data s c/10, 10k iterations
+
+
+
+
+file = 'LN_results_bi_3e8_cby10_10k'
 df = pd.read_csv(f'/Users/ssarasw2/Desktop/LN_simulation/LN-PathFinding/{file}.csv')
 # df = pd.read_csv(f'C:/Users/sindu/Work/UNCC Research/GIT_LN/LN-PathFinding/New_MP_results/{file}.csv')
 df = df.fillna("[[],0,0,0,'Failure']")
@@ -45,16 +64,16 @@ for a in algo:
     df1[f'{a}pthlnt'] = extract_field(3, a)
     df1[f'{a}tp'] = extract_field(4, a)
 
-color = ['#1f77b4',  # Blue
-               '#ff7f0e',  # Orange
-               '#2ca02c',  # Green
-               '#d62728',  # Red
-               '#9467bd',  # Purple
-               '#8c564b',  # Brown
-               '#e377c2',  # Pink
-               '#7f7f7f',  # Gray
-               '#bcbd22',  # Yellow
-               '#17becf']  # Cyan
+# color = ['#1f77b4',  # Blue
+               # '#ff7f0e',  # Orange
+               # '#2ca02c',  # Green
+               # '#d62728',  # Red
+               # '#9467bd',  # Purple
+               # '#8c564b',  # Brown
+               # '#e377c2',  # Pink
+               # '#7f7f7f',  # Gray
+               # '#bcbd22',  # Yellow
+               # '#17becf']  # Cyan
 #-------------------------------------------------------------------------------------------------
 srate = {}
 start = 0
@@ -81,7 +100,7 @@ srate['Txn Count'] = amt_bins
 sdf = pd.DataFrame(srate)
 for a in algo:
     sdf[a] = sdf[a]*100/sdf['Txn Count']
-sdf['Txn Count'] = sdf['Txn Count']*100/sdf['Txn Count']
+# sdf['Txn Count'] = sdf['Txn Count']*100/sdf['Txn Count']
 # sdf['Bins'] = [f'{i}-{i+1}' for i in range(8)]
 # sdf[sdf.columns[0:-1]].plot(kind='bar', color=color) #bar plot
 # plt.xlabel('Amount bins')
@@ -90,7 +109,7 @@ sdf['Txn Count'] = sdf['Txn Count']*100/sdf['Txn Count']
 # plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 # plt.show()
 
-sdf['Actual Txn Count'] = amt_bins
+# sdf['Actual Txn Count'] = amt_bins
 # print(sdf.to_latex(index=False))
 print('\n', tabulate(sdf, headers = 'keys', tablefmt = 'psql',showindex=True))
 print('\nSuccess Rate:\n\n', tabulate(srate, headers = 'keys', tablefmt = 'psql',showindex=False))
@@ -104,7 +123,8 @@ def df_plot(data, amt_bins, algo, title, xlabel, ylabel):
     ratio_df = pd.DataFrame()
     for a in algo:
         ratio_df[a] = df_temp[a]/df_temp['Txn Count']
-    ratio_df.plot(color=color)
+    # ratio_df.plot(color=color)
+    ratio_df.plot()
     # df_temp.plot(kind='bar')
     plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     plt.title(title)
@@ -246,7 +266,8 @@ def sns_plot(data, kind, xlog, ylog, title, xlabel, ylabel):
     if kind != 'hist':
         sns.displot(data, kind=kind)
     else:
-        ax.hist(data, color=color[:7])
+        # ax.hist(data, color=color[:7])
+        ax.hist(data)
         plt.legend(algo)
     if xlog:
         plt.xscale('log')

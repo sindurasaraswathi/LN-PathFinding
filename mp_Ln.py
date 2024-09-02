@@ -4,7 +4,8 @@ Created on Tue Nov  7 11:08:01 2023
 
 @author: sindu
 """
-
+#new remove
+#uncomment - do it
    
 import datetime
 import networkx as nx
@@ -22,6 +23,8 @@ import csv
 from ordered_set import OrderedSet
 import multiprocessing as mp
 import numpy as np
+import matplotlib.pyplot as plt
+import scipy.optimize as opt
 # import pickle
 
 startTime = datetime.datetime.now()
@@ -29,10 +32,12 @@ startTime = datetime.datetime.now()
 
 config = configparser.ConfigParser()
 config.read('config.ini')
-
-        
+      
 #--------------------------------------------
 global use_log, case
+global prob_check, prob_dict
+prob_check = {}
+prob_dict = {}
 epoch = int(config['General']['iterations'])
 cbr = int(config['General']['cbr'])
 src_type = config['General']['source_type']
@@ -100,7 +105,11 @@ def make_graph(G):
         channel_id = df['short_channel_id'][i]
         block_height = int(channel_id.split('x')[0])
         G.edges[u,v]['id'] = channel_id
-        G.edges[u,v]['capacity'] = int(df['satoshis'][i])
+        G.edges[u,v]['capacity'] = int(df['satoshis'][i])#uncomment
+        # G.edges[u,v]['capacity'] = 10**8 #new
+        G.edges[u,v]['UpperBound'] = int(df['satoshis'][i])
+        # G.edges[u,v]['UpperBound'] = 10**8 #new
+        G.edges[u,v]['LowerBound'] = 0
         G.edges[u,v]['Age'] = block_height 
         G.edges[u,v]['BaseFee'] = df['base_fee_millisatoshi'][i]/1000
         G.edges[u,v]['FeeRate'] = df['fee_per_millionth'][i]/1000000
@@ -108,27 +117,82 @@ def make_graph(G):
         G.edges[u,v]['htlc_min'] = int(re.split(r'(\d+)', df['htlc_minimum_msat'][i])[1])/1000
         G.edges[u,v]['htlc_max'] = int(re.split(r'(\d+)', df['htlc_maximum_msat'][i])[1])/1000
         G.edges[u,v]['LastFailure'] = 25
-        if (v,u) in G.edges:
-            # G.edges[u,v]['capacity'] = G.edges[v,u]['capacity']
-            G.edges[u,v]['Balance'] = G.edges[v,u]['capacity'] - G.edges[v,u]['Balance']
-        else:
-            # G.edges[u,v]['capacity'] = int(df['satoshis'][i])
-            cap = G.edges[u,v]['capacity']
-            rng = np.linspace(0, cap, 1000)
-            s = cap/3
-            P = np.exp(-rng/s) + np.exp((rng - cap)/s)
-            P /= np.sum(P)
-            cdf = np.cumsum(P)
-            uni_num = np.random.uniform(0, 1)
-            x = int(rng[np.searchsorted(cdf, uni_num)])
-            
-            # x = int(rn.uniform(0, G.edges[u,v]['capacity']))
-            G.edges[u,v]['Balance'] = x       
     return G
 
       
 G = nx.DiGraph()
 G = make_graph(G)
+
+y = []
+# for i in G.edges:#uncomment
+#     if 'Balance' not in G.edges[i]:
+#         cap = G.edges[i]['capacity']
+#         rng = np.linspace(0, cap, 10000) 
+#         s = 3*(10**(math.log10(cap)/1.5))
+#         P = np.exp(-rng/s) + np.exp((rng - cap)/s)
+#         P /= np.sum(P)
+#         cdf = np.cumsum(P)
+#         uni_num = np.random.uniform(0, 1)
+#         x = int(rng[np.searchsorted(cdf, uni_num)])
+#         # x = int(rn.uniform(0, G.edges[u,v]['capacity']))
+#         (u,v) = i
+#         G.edges[(u,v)]['Balance'] = x  
+#         G.edges[(v,u)]['Balance'] = cap - x
+#         # y[i] = [x,cap-x]
+#         y.append(x)
+#         y.append(cap-x)
+        
+#         if G.edges[v,u]['Balance'] < 0 or G.edges[v,u]['Balance'] > G.edges[i]['capacity']:
+#             print(i, 'Error at', (v,u))
+#             raise ValueError
+            
+#         if G.edges[u,v]['Balance'] < 0 or G.edges[u,v]['Balance'] > G.edges[i]['capacity']:
+#             print(i, 'Error at', (u,v))
+#             raise ValueError
+            
+#         if G.edges[(v,u)]['Balance'] + G.edges[(u,v)]['Balance'] != cap:
+#             raise ValueError
+cc = 0
+for i in G.edges:#new
+    if 'Balance' not in G.edges[i]:
+        cap = G.edges[i]['capacity']
+        rng = np.linspace(0, cap, 10000) 
+        # s = int(3*(10**(math.log10(cap)/1.5)))
+        s = cap/10
+        
+        P = np.exp(-rng/s) + np.exp((rng - cap)/s)
+        P /= np.sum(P)            
+
+        x = int(np.random.choice(rng, p=P))
+        # x = int(rn.uniform(0, G.edges[i]['capacity']))
+        
+        if cc<5:
+            plt.plot(P)
+            plt.show()
+            print(x, cap)
+            cc += 1
+            
+        (u,v) = i
+        G.edges[(u,v)]['Balance'] = x
+        G.edges[(v,u)]['Balance'] = cap - x
+        
+        y.append(x)
+        y.append(cap-x)
+        
+        if G.edges[v,u]['Balance'] < 0 or G.edges[v,u]['Balance'] > G.edges[i]['capacity']:
+            print(i, 'Error at', (v,u))
+            raise ValueError
+            
+        if G.edges[u,v]['Balance'] < 0 or G.edges[u,v]['Balance'] > G.edges[i]['capacity']:
+            print(i, 'Error at', (u,v))
+            raise ValueError
+            
+        if G.edges[(v,u)]['Balance'] + G.edges[(u,v)]['Balance'] != cap:
+            raise ValueError
+
+plt.hist(y)
+plt.show()
+
 
 def callable(source, target, amt, result, name):
     def tracker(path, dist, p_amt, p_dist):
@@ -296,8 +360,10 @@ def callable(source, target, amt, result, name):
             amount = amt_dict[(v, prev_dict[v][0])] 
             sub_func(u,v,amount)
     
+    
     def primitive(c, x):
-        s = cap/3 #3e8
+        # s = int(3*(10**(math.log10(c)/1.5)))
+        s = 3e8
         ecs = math.exp(-c/s)
         exs = math.exp(-x/s)
         excs = math.exp((x-c)/s)
@@ -314,6 +380,7 @@ def callable(source, target, amt, result, name):
         if prob is math.nan:
             return 0
         reNorm = integral(cap, a_s, a_f)
+        
         if reNorm is math.nan or reNorm == 0:
             return 0
         prob /= reNorm
@@ -323,8 +390,35 @@ def callable(source, target, amt, result, name):
             return 0
         return prob
     
+    
     #v - target, u - source, d - G.edges[v,u]
     def lnd_cost(v,u,d):
+        # global prob_check, prob_dict#new
+        global timepref, case
+        compute_fee(v,u,d)        
+        timepref *= 0.9
+        defaultattemptcost = attemptcost+attemptcostppm*amt_dict[(u,v)]/1000000
+        penalty = defaultattemptcost * (1/(0.5-timepref/2) - 1)
+        cap = G.edges[u,v]["capacity"]
+        if case == 'apriori':
+            prob_weight = 2**G.edges[u,v]["LastFailure"]
+            den = 1+math.exp(-(amt_dict[(u,v)] - capfraction*cap)/(smearing*cap))
+            nodeprob = apriori * (1-(0.5/den))
+            prob = nodeprob * (1-(1/prob_weight))
+            prob_check[u,v] = prob
+        elif case == 'bimodal':
+            # prob = bimodal(cap, cap, 0, amt_dict[(u,v)])
+            prob = bimodal(cap, G.edges[u,v]['UpperBound'], G.edges[u,v]["LowerBound"], amt_dict[(u,v)]) 
+            prob_dict[(v,u)] = prob
+            #new
+        if prob == 0:
+            cost = float('inf')
+        else:
+            cost = fee_dict[(u,v)] + G.edges[u,v]['Delay']*amt_dict[(u,v)]*rf + penalty/prob
+        return cost
+    
+    
+    def testlnd_cost(v,u,d):#new
         global timepref, case
         compute_fee(v,u,d)        
         timepref *= 0.9
@@ -341,9 +435,10 @@ def callable(source, target, amt, result, name):
         if prob == 0:
             cost = float('inf')
         else:
-            cost = fee_dict[(u,v)] + G.edges[u,v]['Delay']*amt_dict[(u,v)]*rf + penalty/prob
+            # cost = fee_dict[(u,v)] + G.edges[u,v]['Delay']*amt_dict[(u,v)]*rf + penalty - math.log(prob)
+            cost = fee_dict[(u,v)] + G.edges[u,v]['Delay']*amt_dict[(u,v)]*rf - penalty * math.log(prob)
         return cost
-            
+
     
     def cln_cost(v,u,d):
         compute_fee(v,u,d)
@@ -381,27 +476,7 @@ def callable(source, target, amt, result, name):
         if G.edges[u,v]["capacity"] != 0:
             prob = 1 - (hop_amt/G.edges[u,v]["capacity"])
         else:
-            prob = 0
-        # if v == target:
-        #     total_prob = prob
-        # else:
-        #     total_prob = prob * prob_eclair[(v, prev_dict[v][0])]
-        # if prob<0:
-        #     total_prob = 0
-        # prob_eclair[(u,v)] = total_prob
-        #fee
-        # total_fee = amt_dict[(u,v)] - amt
-        #total CLTV
-        # total_cltv = G.edges[u,v]["Delay"]
-        # temp_path = paths[v]
-        # for i in range(1,len(temp_path)-1):
-        #     p = temp_path[i+1]
-        #     q = temp_path[i]
-        #     total_cltv += G.edges[(p,q)]["Delay"]
-        #total Amount
-        # total_amount = amt_dict[(u,v)]        
-        # total_risk_cost = total_amount * total_cltv * locked_funds_risk
-        
+            prob = 0        
         #risk cost
         risk_cost = amt_dict[(u,v)] * G.edges[u,v]["Delay"] * locked_funds_risk
         #failure cost
@@ -540,13 +615,17 @@ def callable(source, target, amt, result, name):
                 fee = round(fee, 5)
                 if amount > G.edges[u,v]["Balance"] or amount<=0:
                     G.edges[u,v]["LastFailure"] = 0
+                    if amount < G.edges[u,v]["UpperBound"]:
+                        G.edges[u,v]["UpperBound"] = amount #new
                     j = i-1
                     release_locked(j, path)
                     return [path, total_fee, total_delay, path_length, 'Failure']
                 else:
                     G.edges[u,v]["Balance"] -= amount
                     G.edges[u,v]["Locked"] = amount  
-                    G.edges[u,v]["LastFailure"] = 25
+                    G.edges[u,v]["LastFailure"] = 100
+                    if G.edges[u,v]["LowerBound"] < amount:
+                        G.edges[u,v]["LowerBound"] = amount #new
                 amount = round(amount - fee, 5)
                 if v == target and amount!=amt:
                     return [path, total_fee, total_delay, path_length, 'Failure']
@@ -564,18 +643,21 @@ def callable(source, target, amt, result, name):
         print("Path found by", res_name, res[::-1])
         result[res_name] = route(G, res, source, target)
         
+        
     def helper(name, func):
         global use_log, case
         try:
             print("\n**",name,"**")
             if name != 'Eclair':
                 if name == 'LND':
-                    for cs in ['LND1', 'LND2']:
+                    for cs in ['LND1', 'LND2']:#test1&2 new
                         case = config[name][cs]
+                        # if cs == 'testlnd1' or cs == 'testlnd2':#new
+                        #     func = testlnd_cost#new
                         dijkstra_caller(cs, func)
+                        prob_dict[cs] = prob_check
                 else:
                     dijkstra_caller(name, func)
-                
             else:
                 for cs in ['Eclair_case1', 'Eclair_case2', 'Eclair_case3']:
                     use_log = config[cs]['use_log']
@@ -598,6 +680,8 @@ def callable(source, target, amt, result, name):
     prev_dict = {}
     paths = {target:[target]}
     helper(name, algo[name])
+    # print(prob_dict)
+    # print(prob_check)
     return result
         
 if __name__ == '__main__':       
@@ -664,6 +748,7 @@ if __name__ == '__main__':
         
     work = []              
     result_list = [] 
+    prob_dict = {}
     
     well_node, fair_node, poor_node = node_classifier()
     i = 0
@@ -674,7 +759,7 @@ if __name__ == '__main__':
             amt = int(config['General']['amount'])
             
         elif amt_type == 'random':
-            k = (i%8)+1 #i%6 for fair node else i%8
+            k = (i%8)+1 #i%6 for fair node else i%8 
             amt = rn.randint(10**(k-1), 10**k)
             
         result = {}
@@ -694,16 +779,17 @@ if __name__ == '__main__':
         result['Amount'] = amt
         # result['upper bound'] = cap
         
-        for algo in ['LND', 'LDK', 'CLN', 'Eclair']:
+        for algo in ['LND', 'LDK', 'CLN', 'Eclair']:#uncomment
             work.append((source, target, amt, result, algo))
+        # work.append((source, target, amt, result, 'LND')) #new
         i = i+1
     
     pool = mp.Pool(processes=8)
     a = pool.starmap(callable, work)
     result_list.append(a)
     
-    
-    ans_list = []
+    ##4 work so i=4
+    ans_list = [] #uncomment
     i = 0
     temp = {}
     for res in result_list[0]:
@@ -714,15 +800,18 @@ if __name__ == '__main__':
             ans_list.append(temp)
             temp = {}
             i = 0
-            
 
-    fields = ['Source', 'Target', 'Amount', 'LND1', 'LND2', 'CLN', 'LDK', 'Eclair_case1', 'Eclair_case2', 'Eclair_case3']
+            
+#test1&2 new
+    fields = ['Source', 'Target', 'Amount', 'LND1', 'LND2', 'CLN', 'LDK', 'Eclair_case1', 'Eclair_case2', 'Eclair_case3']#uncomment
+    # fields = ['Source', 'Target', 'Amount', 'LND1', 'LND2', 'testlnd1', 'testlnd2'] #new
     filename = config['General']['filename'] 
     with open(filename, 'w') as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fields)
         writer.writeheader()
         for i in ans_list:
             writer.writerow(i)
+        
             
 endTime = datetime.datetime.now()
 print(endTime - startTime)
