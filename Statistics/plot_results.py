@@ -16,8 +16,8 @@ from tabulate import tabulate
 from ordered_set import OrderedSet
 
 # plt.style.use('ggplot')
-file = 'LN_results_10k'
-df = pd.read_csv(f'/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/New_MP_results/{file}.csv')
+file = 'LN_results_bi_test2'
+df = pd.read_csv(f'/Users/ssarasw2/Desktop/LN_simulation/LN-PathFinding/{file}.csv')
 # df = pd.read_csv(f'C:/Users/sindu/Work/UNCC Research/GIT_LN/LN-PathFinding/New_MP_results/{file}.csv')
 df = df.fillna("[[],0,0,0,'Failure']")
 df = df.drop_duplicates()
@@ -36,6 +36,8 @@ def extract_field(num, col):
 df1 = pd.DataFrame()
 
 df1['amount'] = df['Amount']
+# df1['upper bound'] = df['upper bound']
+
 algo = list(df.columns[3:])
 for a in algo:
     df1[f'{a}fee'] = extract_field(1, a)
@@ -110,12 +112,13 @@ def df_plot(data, amt_bins, algo, title, xlabel, ylabel):
     plt.ylabel(ylabel)
     
     xticks = [i for i in range(8)]
-    xticklabels = [rf'$10^{i}-10^{i+1}$' for i in range(8)]  
+    # xticklabels = [rf'$10^{i}-10^{i+1}$' for i in range(8)] 
+    xticklabels = [rf'${i}-{i+1}$' for i in range(8)]
     plt.xticks(xticks, xticklabels, rotation=0, fontsize=7)
 
     plt.show()
 
-df_plot(srate, amt_bins, algo, 'Success Rate', 'Amount Bins', 'Ratio') 
+df_plot(srate, amt_bins, algo, 'Success Rate', 'Amount Bins (log scale)', 'Ratio') 
 
 
 # pd.DataFrame(srate).plot(kind='bar', color=color) #bar
@@ -141,7 +144,8 @@ def plot_graph(x, y, kind, xlog, ylog, title, xlabel, ylabel):
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
     xticks = [i for i in range(9)]
-    xticklabels = [''] + [rf'$10^{i}-10^{i+1}$' for i in range(8)]  
+    # xticklabels = [''] + [rf'$10^{i}-10^{i+1}$' for i in range(8)]  
+    xticklabels = [rf'${i}-{i+1}$' for i in range(9)]
     plt.xticks(xticks, xticklabels,fontsize=8)
     plt.show()
     
@@ -194,7 +198,7 @@ for a in algo:
     name = f'{a}fee'
     step = 1
     fee_list, fee_med, amount_list = fee_df(val, name, step)
-    plot_graph(fee_list, 0, 'box', False, True, f'{a} Fee', 'Amount Bins', 'Fee')
+    plot_graph(fee_list, 0, 'box', False, True, f'{a} Fee', 'Amount Bins (log scale)', 'Fee (log scale)')
     # plot_graph(range(len(fee_med)), fee_med,'scatter', False, True, f'{a} Median Fee', 'Amount', 'Fee')
         
     w_sum = 0 
@@ -224,7 +228,7 @@ for a in algo:
     weighted_median = w_sum/total_weight
     weighted_plength = p_sum/total_weight
     weighted_dly = d_sum/total_weight
-    # print(a,'\n', tabulate(pdf, headers = 'keys', tablefmt = 'psql',showindex=True))
+    print(a,'\n', tabulate(pdf, headers = 'keys', tablefmt = 'psql',showindex=True))
     # print("Weighted average of median fee:", weighted_median) #(weight is the number of transactions in the bin)
     # print('Weighted average path length:', weighted_plength)
     # print('Weighted average Timelock:', weighted_dly)
@@ -258,7 +262,13 @@ data = sfee[[f'{a}pthlnt' for a in algo]]
 sns_plot(data, 'hist', False, False, 'Path Length', 'Path Length', 'Count')
 # sns_plot(data, 'kde', False, False, 'Path length (KDE)', '', '')
 
+dd = df['Amount']
+print(len(dd))
+dd = dd.replace(float('inf'), None).dropna()
 
+# fig, ax = plt.subplots(figsize=plt.figaspect(1/3))
+# ax.hist(dd)
+# plt.show()
 # data = sfee[[f'{a}dly' for a in algo]]
 # print(data.mean())
 # data=sfee[[f'{a}fee' for a in algo]]

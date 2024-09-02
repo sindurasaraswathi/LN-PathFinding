@@ -17,7 +17,8 @@ from ordered_set import OrderedSet
 
 # plt.style.use('ggplot')
 
-res = ['10k', 'W_W', 'W_F', 'W_P', 'F_W', 'F_F', 'F_P', 'P_W', 'P_F', 'P_P']
+# res = ['10k', 'W_W', 'W_F', 'W_P', 'F_W', 'F_F', 'F_P', 'P_W', 'P_F', 'P_P']
+res = ['uni2']
 cols = ['Index', 'LND1', 'LND2', 'CLN', 'LDK', 'Eclair_case1', 'Eclair_case2', 'Eclair_case3']
 dff = pd.DataFrame(columns=cols)
 dff['Index'] = res
@@ -37,7 +38,9 @@ df_node = pd.DataFrame()
 
 
 for file in res:
-    df = pd.read_csv(f'C:/Users/sindu/Work/UNCC Research/GIT_LN/LN-PathFinding/New_results/LN_results_{file}.csv')
+    # df = pd.read_csv(f'C:/Users/sindu/Work/UNCC Research/GIT_LN/LN-PathFinding/New_results/LN_results_{file}.csv')
+    df = pd.read_csv(f'/Users/ssarasw2/Desktop/LN_simulation/LN-PathFinding/LN_results_{file}.csv')
+
     df = df.fillna("[[],0,0,0,'Failure']")
     df = df.drop_duplicates()
 
@@ -227,9 +230,9 @@ for file in res:
         pdf[a] = fee_med
         
         #overall stat in a file
-        dff.loc[file][a] = median(fee_mega)*100
-        dff1.loc[file][a] = sfee[[f'{a}pthlnt']].mean()[0]
-        dff2.loc[file][a] = sfee[[f'{a}dly']].mean()[0]
+        dff.loc[file][a] = median(fee_mega)*100 #save this for fee
+        dff1.loc[file][a] = sfee[[f'{a}pthlnt']].mean()[0] #save this for path length
+        dff2.loc[file][a] = sfee[[f'{a}dly']].mean()[0] # save this for delay
                 
         
     #     temp_df[a] = [i for i in range(end+1)]
@@ -243,8 +246,9 @@ for file in res:
     sdf['file'] = file
     pdf['file'] = file
     for j in [1,3,5]:
-        df_node = df_node.append(sdf.loc[j], ignore_index=True)
-        final_df = final_df.append(pdf.loc[j], ignore_index=True)#fee
+        # df_node = df_node.append(sdf.loc[j], ignore_index=True)
+        df_node = pd.concat([df_node, pd.DataFrame(sdf.loc[j])], ignore_index=True, axis=1)
+        final_df = pd.concat([final_df, pd.DataFrame(pdf.loc[j])], ignore_index=True, axis=1)#fee
 
     
     # save_df.to_csv(f'{file}_stat2.csv')

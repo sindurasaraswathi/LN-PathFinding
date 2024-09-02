@@ -21,6 +21,7 @@ import configparser
 import csv
 from ordered_set import OrderedSet
 import multiprocessing as mp
+import numpy as np
 # import pickle
 
 startTime = datetime.datetime.now()
@@ -108,10 +109,21 @@ def make_graph(G):
         G.edges[u,v]['htlc_max'] = int(re.split(r'(\d+)', df['htlc_maximum_msat'][i])[1])/1000
         G.edges[u,v]['LastFailure'] = 25
         if (v,u) in G.edges:
-            G.edges[u,v]['Balance'] = G.edges[u,v]['capacity'] - G.edges[v,u]['Balance']
+            # G.edges[u,v]['capacity'] = G.edges[v,u]['capacity']
+            G.edges[u,v]['Balance'] = G.edges[v,u]['capacity'] - G.edges[v,u]['Balance']
         else:
-            x = int(rn.uniform(0, int(df['satoshis'][i])))
-            G.edges[u,v]['Balance'] = x            
+            # G.edges[u,v]['capacity'] = int(df['satoshis'][i])
+            cap = G.edges[u,v]['capacity']
+            rng = np.linspace(0, cap, 1000)
+            s = cap/3
+            P = np.exp(-rng/s) + np.exp((rng - cap)/s)
+            P /= np.sum(P)
+            cdf = np.cumsum(P)
+            uni_num = np.random.uniform(0, 1)
+            x = int(rng[np.searchsorted(cdf, uni_num)])
+            
+            # x = int(rn.uniform(0, G.edges[u,v]['capacity']))
+            G.edges[u,v]['Balance'] = x       
     return G
 
       
@@ -285,7 +297,7 @@ def callable(source, target, amt, result, name):
             sub_func(u,v,amount)
     
     def primitive(c, x):
-        s = 3e8
+        s = cap/3 #3e8
         ecs = math.exp(-c/s)
         exs = math.exp(-x/s)
         excs = math.exp((x-c)/s)
@@ -313,7 +325,7 @@ def callable(source, target, amt, result, name):
     
     #v - target, u - source, d - G.edges[v,u]
     def lnd_cost(v,u,d):
-        global timepref
+        global timepref, case
         compute_fee(v,u,d)        
         timepref *= 0.9
         defaultattemptcost = attemptcost+attemptcostppm*amt_dict[(u,v)]/1000000
@@ -549,7 +561,7 @@ def callable(source, target, amt, result, name):
     def dijkstra_caller(res_name, func):
         dist = nx2._dijkstra(G, source=target, target=source, weight = func, pred=prev_dict, paths=paths)
         res = paths[source]
-        print("Path found by", name, res[::-1])
+        print("Path found by", res_name, res[::-1])
         result[res_name] = route(G, res, source, target)
         
     def helper(name, func):
@@ -640,12 +652,23 @@ if __name__ == '__main__':
         else:
             return False
         
+    def node_cap(source, target):
+        src_max = 0
+        tgt_max = 0
+        for edges in G.out_edges(source):
+            src_max = max(src_max, G.edges[edges]['Balance'])
+        for edges in G.in_edges(target):
+            tgt_max = max(tgt_max, G.edges[edges]['Balance'])
+        upper_bound = int(min(src_max, tgt_max))
+        return upper_bound
         
     work = []              
     result_list = [] 
     
     well_node, fair_node, poor_node = node_classifier()
     i = 0
+    
+    #uniform random amount selection
     while i<epoch:
         if amt_type == 'fixed':
             amt = int(config['General']['amount'])
@@ -662,13 +685,14 @@ if __name__ == '__main__':
             target = node_selector(dst_type)
         
         if not(node_ok(source, target)):
-            continue       
-                        
+            continue 
+                     
         print("\nSource = ",source, "Target = ", target, "Amount=", amt, 'Epoch =', i)
         print("----------------------------------------------")
         result['Source'] = source
         result['Target'] = target
         result['Amount'] = amt
+        # result['upper bound'] = cap
         
         for algo in ['LND', 'LDK', 'CLN', 'Eclair']:
             work.append((source, target, amt, result, algo))
