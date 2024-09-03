@@ -18,7 +18,7 @@ from ordered_set import OrderedSet
 # plt.style.use('ggplot')
 
 # res = ['10k', 'W_W', 'W_F', 'W_P', 'F_W', 'F_F', 'F_P', 'P_W', 'P_F', 'P_P']
-res = ['uni2']
+res = ['bi_test']
 cols = ['Index', 'LND1', 'LND2', 'CLN', 'LDK', 'Eclair_case1', 'Eclair_case2', 'Eclair_case3']
 dff = pd.DataFrame(columns=cols)
 dff['Index'] = res
@@ -39,7 +39,9 @@ df_node = pd.DataFrame()
 
 for file in res:
     # df = pd.read_csv(f'C:/Users/sindu/Work/UNCC Research/GIT_LN/LN-PathFinding/New_results/LN_results_{file}.csv')
-    df = pd.read_csv(f'/Users/ssarasw2/Desktop/LN_simulation/LN-PathFinding/LN_results_{file}.csv')
+    # df = pd.read_csv(f'/Users/ssarasw2/Desktop/LN_simulation/LN-PathFinding/LN_results_{file}.csv')
+    df = pd.read_csv(f'/Users/ssarasw2/Desktop/LN pathfinding/LN-PathFinding/LN_results_{file}.csv')
+
 
     df = df.fillna("[[],0,0,0,'Failure']")
     df = df.drop_duplicates()
@@ -276,3 +278,6 @@ for file in res:
     data = sfee[[f'{a}pthlnt' for a in algo]]
     sns_plot(data, 'hist', False, False, 'Path Length', 'Path Length', 'Count')
     
+    
+
+   

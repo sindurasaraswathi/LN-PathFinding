@@ -156,21 +156,19 @@ cc = 0
 for i in G.edges:#new
     if 'Balance' not in G.edges[i]:
         cap = G.edges[i]['capacity']
-        rng = np.linspace(0, cap, 10000) 
-        # s = int(3*(10**(math.log10(cap)/1.5)))
-        s = cap/10
-        
-        P = np.exp(-rng/s) + np.exp((rng - cap)/s)
-        P /= np.sum(P)            
-
-        x = int(np.random.choice(rng, p=P))
-        # x = int(rn.uniform(0, G.edges[i]['capacity']))
-        
-        if cc<5:
-            plt.plot(P)
-            plt.show()
-            print(x, cap)
-            cc += 1
+        datasample = config['General']['datasampling']
+        if datasample == 'bimodal':
+            rng = np.linspace(0, cap, 10000)
+            s = cap/10
+            P = np.exp(-rng/s) + np.exp((rng - cap)/s)
+            P /= np.sum(P)            
+            x = int(np.random.choice(rng, p=P))
+            if cc<5:
+                plt.plot(P)
+                plt.show()
+                cc += 1
+        else:
+            x = int(rn.uniform(0, G.edges[i]['capacity']))
             
         (u,v) = i
         G.edges[(u,v)]['Balance'] = x
@@ -180,19 +178,19 @@ for i in G.edges:#new
         y.append(cap-x)
         
         if G.edges[v,u]['Balance'] < 0 or G.edges[v,u]['Balance'] > G.edges[i]['capacity']:
-            print(i, 'Error at', (v,u))
+            print(i, 'Balance error at', (v,u))
             raise ValueError
             
         if G.edges[u,v]['Balance'] < 0 or G.edges[u,v]['Balance'] > G.edges[i]['capacity']:
-            print(i, 'Error at', (u,v))
+            print(i, 'Balance error at', (u,v))
             raise ValueError
             
         if G.edges[(v,u)]['Balance'] + G.edges[(u,v)]['Balance'] != cap:
+            print('Balance error at', (v,u))
             raise ValueError
 
 plt.hist(y)
 plt.show()
-
 
 def callable(source, target, amt, result, name):
     def tracker(path, dist, p_amt, p_dist):
@@ -650,16 +648,16 @@ def callable(source, target, amt, result, name):
             print("\n**",name,"**")
             if name != 'Eclair':
                 if name == 'LND':
-                    for cs in ['LND1', 'LND2']:#test1&2 new
+                    lndcase = config['General']['lndcase'].split('|')
+                    for cs in lndcase:
                         case = config[name][cs]
-                        # if cs == 'testlnd1' or cs == 'testlnd2':#new
-                        #     func = testlnd_cost#new
                         dijkstra_caller(cs, func)
                         prob_dict[cs] = prob_check
                 else:
                     dijkstra_caller(name, func)
             else:
-                for cs in ['Eclair_case1', 'Eclair_case2', 'Eclair_case3']:
+                eclaircase = config['General']['eclaircase'].split('|')
+                for cs in eclaircase:
                     use_log = config[cs]['use_log']
                     case = config[cs]['case'] 
                     res = list(islice(shortest_simple_paths(G, source=target, target=source, weight=func), 1))
@@ -753,13 +751,15 @@ if __name__ == '__main__':
     well_node, fair_node, poor_node = node_classifier()
     i = 0
     
+    algos = config['General']['algos'].split('|')
+    amt_end_range = int(config['General']['amt_end_range'])
     #uniform random amount selection
     while i<epoch:
         if amt_type == 'fixed':
             amt = int(config['General']['amount'])
             
         elif amt_type == 'random':
-            k = (i%8)+1 #i%6 for fair node else i%8 
+            k = (i%amt_end_range)+1 #i%6 for fair node else i%8 
             amt = rn.randint(10**(k-1), 10**k)
             
         result = {}
@@ -779,7 +779,7 @@ if __name__ == '__main__':
         result['Amount'] = amt
         # result['upper bound'] = cap
         
-        for algo in ['LND', 'LDK', 'CLN', 'Eclair']:#uncomment
+        for algo in algos:#uncomment
             work.append((source, target, amt, result, algo))
         # work.append((source, target, amt, result, 'LND')) #new
         i = i+1
@@ -793,18 +793,36 @@ if __name__ == '__main__':
     i = 0
     temp = {}
     for res in result_list[0]:
-        if i<4:
+        if i<len(algos):
             temp.update(res)
         i = i+1
-        if i == 4:
+        if i == len(algos):
             ans_list.append(temp)
             temp = {}
             i = 0
 
             
-#test1&2 new
-    fields = ['Source', 'Target', 'Amount', 'LND1', 'LND2', 'CLN', 'LDK', 'Eclair_case1', 'Eclair_case2', 'Eclair_case3']#uncomment
-    # fields = ['Source', 'Target', 'Amount', 'LND1', 'LND2', 'testlnd1', 'testlnd2'] #new
+    # fields = ['Source', 'Target', 'Amount', 'LND1', 'LND2', 'CLN', 'LDK', 'Eclair_case1', 'Eclair_case2', 'Eclair_case3']#uncomment
+    fields = ['Source', 'Target', 'Amount'] 
+    lndcase = config['General']['lndcase'].split('|')
+    eclaircase = config['General']['eclaircase'].split('|')
+    if 'LND' in algos:
+        if 'LND1' in lndcase:
+            fields.append('LND1')
+        if 'LND2' in lndcase:
+            fields.append('LND2')
+    if 'CLN' in algos:
+        fields.append('CLN')
+    if 'LDK' in algos:
+        fields.append('LDK')
+    if 'Eclair' in algos:
+        if 'Eclair_case1' in eclaircase:
+            fields.append('Eclair_case1')
+        if 'Eclair_case2' in eclaircase:
+            fields.append('Eclair_case2')
+        if 'Eclair_case3' in eclaircase:
+            fields.append('Eclair_case3')
+    
     filename = config['General']['filename'] 
     with open(filename, 'w') as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fields)
