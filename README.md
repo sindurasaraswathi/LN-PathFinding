@@ -1,5 +1,6 @@
-# LN-PathFinding
-Run mp_Ln.py
+# An Exposition of PathfindingAn Exposition of Pathfinding Strategies Within Lightning Network Clients
+
+Run run_simulation.py
 
 Edit config file as per the requirement
 
