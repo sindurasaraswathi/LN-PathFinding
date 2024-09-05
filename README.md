@@ -17,10 +17,10 @@ This script simulates payment attempts on the LN using various client implementa
 
 * Randomly selects source and target nodes and payment amounts for a specified number of iterations.
 * Source and destination nodes are chosen from one of the following categories:
-  - Well-connected: Nodes with a total channel capacity ≥ 10^6 and more than 5 channels.
-  - Fairly connected: Nodes with a total channel capacity between 10^4 and 10^6, and more than 5 channels.
+  - Well-connected: Nodes with a total channel capacity ≥ $10^6$ and more than 5 channels.
+  - Fairly connected: Nodes with a total channel capacity between $10^4$ and $10^6$, and more than 5 channels.
   - Poorly connected: Nodes with fewer than 5 channels.
-* Payment amounts are either selected randomly or fixed. For random amounts, values are chosen from bins (10^k to 10^(k+1)) where k ranges from 0 to the specified end range.
+* Payment amounts are either selected randomly or fixed. For random amounts, values are chosen from bins ($10^k$ to $10^{(k+1)}$) where k ranges from 0 to the specified end range.
 * The simulation runs for the selected clients and specified parameters, using the client's pathfinding strategy to determine the route for each payment.
 * Payment success or failure, along with metrics such as path, total fee, delay, path length, and success/failure status, is recorded in a <filename>.csv file.
 
