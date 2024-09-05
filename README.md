@@ -1,4 +1,4 @@
-# An Exposition of PathfindingAn Exposition of Pathfinding Strategies Within Lightning Network Clients
+# An Exposition of Pathfinding Strategies Within Lightning Network Clients
 
 This repository provides a simulation framework for evaluating the performance of various Lightning Network (LN) clients (LND, CLN, LDK, and Eclair) in routing payments. It includes tools for running simulations, configuring parameters, and analyzing the results.
 
