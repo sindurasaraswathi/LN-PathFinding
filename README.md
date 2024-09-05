@@ -36,7 +36,7 @@ General:
 - target_type: Choose destination node selection strategy (random, well, fair, or poor).
 - amount_type: Choose payment amount selection (random or fixed).
 - amount: Fixed payment amount to route (used if amount_type is fixed).
-- amt_end_range: Maximum power range for payment amounts (e.g., 8 for maximum payment of 10^8, used if amount_type is random).
+- amt_end_range: Maximum power range for payment amounts (e.g., 8 for maximum payment of $10^8$, used if amount_type is random).
 - datasampling: Choose distribution type (bimodal or uniform) for channel balance sampling.
 - algos: Specify which LN clients to test, separated by "|" (e.g., LND|CLN|LDK|Eclair or just CLN).
 - lndcase: Specify the LND cases to test, separated by "|". Use LND1 for 'Apriori' and LND2 for 'Bimodal' probability estimations (e.g., LND1|LND2)
