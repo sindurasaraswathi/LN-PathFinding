@@ -54,9 +54,9 @@ Reads the simulation results from <filename.csv> and generates insights based on
 Configure the analysis process by adjusting the following parameters:
 
 - filepath: Path to the simulation result file (<filename.csv>).
-- amt_start_range: The starting value (k) for the payment amount range (10^k).
-- amt_end_range: The ending value (k) for the payment amount range (10^k).
-- amt_range_step: Step size for varying bins (e.g., 10^(i+step) where i varies from amt_start_range to amt_end_range).
+- amt_start_range: The starting value (k) for the payment amount range ($10^k$).
+- amt_end_range: The ending value (k) for the payment amount range ($10^k$).
+- amt_range_step: Step size for varying bins (e.g., $10^{(i+step)}$ where i varies from amt_start_range to amt_end_range).
 - no_of_clients_success: Specify the minimum number of clients required to succeed in a transaction to include it in fee ratio analysis.
 
 ## How to Run the Simulation
