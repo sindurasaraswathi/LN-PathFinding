@@ -35,9 +35,9 @@ config.read('config.ini')
       
 #--------------------------------------------
 global use_log, case
-global prob_check, prob_dict
-prob_check = {}
-prob_dict = {}
+# global prob_check, prob_dict
+# prob_check = {}
+# prob_dict = {}
 epoch = int(config['General']['iterations'])
 cbr = int(config['General']['cbr'])
 src_type = config['General']['source_type']
@@ -380,7 +380,13 @@ def callable(source, target, amt, result, name):
         elif case == 'bimodal':
             prob = bimodal(cap, G.edges[u,v]['UpperBound'], G.edges[u,v]["LowerBound"], amt_dict[(u,v)]) 
             # prob_dict[(v,u)] = prob
-        if prob == 0:
+        if v == target:
+            prob_dict[v,u] = prob
+        else:
+            pred_node = prev_dict[v][0]
+            prob *= prob_dict[pred_node, v]
+            prob_dict[v,u] = prob
+        if prob == 0 or prob < 0.01:
             cost = float('inf')
         else:
             cost = fee_dict[(u,v)] + G.edges[u,v]['Delay']*amt_dict[(u,v)]*rf + penalty/prob
@@ -602,8 +608,9 @@ def callable(source, target, amt, result, name):
                     lndcase = config['General']['lndcase'].split('|')
                     for cs in lndcase:
                         case = config[name][cs]
+                        prob_dict = {}
                         dijkstra_caller(cs, func)
-                        prob_dict[cs] = prob_check
+                        # prob_dict[cs] = prob_check
                 else:
                     dijkstra_caller(name, func)
             else:
@@ -623,6 +630,7 @@ def callable(source, target, amt, result, name):
     global prev_dict, paths
     fee_dict = {}
     amt_dict = {}
+    prob_dict = {}
     cache_node = target
     visited = set()
     prev_dict = {}

@@ -21,8 +21,7 @@ config.read('analysis_config.ini')
 
 
 filepath = config['File']['filepath']
-filename = config['File']['filename']
-df = pd.read_csv(filepath+filename)
+df = pd.read_csv(filepath)
 df = df.fillna("[[],0,0,0,'Failure']")
 df = df.drop_duplicates()
 
