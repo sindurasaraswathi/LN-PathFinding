@@ -697,8 +697,8 @@ def callable(source, target, amt, result, name):
                 fee = round(fee, 5)
                 if amount > G.edges[u,v]["Balance"] or amount<=0:
                     # G.edges[u,v]["LastFailure"] = 0
-                    if amount < G.edges[u,v]["UpperBound"]:
-                        G.edges[u,v]["UpperBound"] = amount #new
+                    # if amount < G.edges[u,v]["UpperBound"]:
+                    #     G.edges[u,v]["UpperBound"] = amount #new
                     # j = i-1
                     # release_locked(j, path)
                     return [path, total_fee, total_delay, path_length, 'Failure']
@@ -744,6 +744,7 @@ def callable(source, target, amt, result, name):
                 if name == 'LND':
                     lndcase = config['General']['lndcase'].split('|')
                     for cs in lndcase:
+                        
                         fee_dict = {}
                         amt_dict = {}
                         prob_dict = {}
@@ -751,13 +752,15 @@ def callable(source, target, amt, result, name):
                         visited = set()
                         prev_dict = {}
                         paths = {target:[target]}
-                        if cs in ['mlnd1', 'mlnd2']:
+                        
+                        if cs in ['LND1', 'LND2']:
                             func = lnd_cost2
                             case = config[name][cs]
                             dist = dijkstra_lnd(G, sources=[target], target=source, weight = func, pred=prev_dict, paths=paths)
                             res = paths[source]
                             print("Path found by", cs, res[::-1])
                             result[cs] = route(G, res, source, target)
+                            
                         else:
                             if cs in ['test_lnd1', 'test_lnd2']:
                                 func = test_lnd_cost
@@ -770,15 +773,17 @@ def callable(source, target, amt, result, name):
                 else:
                     dijkstra_caller(name, func)
             else:
-                fee_dict = {}
-                amt_dict = {}
-                prob_dict = {}
-                cache_node = target
-                visited = set()
-                prev_dict = {}
-                paths = {target:[target]}
                 eclaircase = config['General']['eclaircase'].split('|')
                 for cs in eclaircase:
+                    
+                    fee_dict = {}
+                    amt_dict = {}
+                    prob_dict = {}
+                    cache_node = target
+                    visited = set()
+                    prev_dict = {}
+                    paths = {target:[target]}
+                    
                     use_log = config[cs]['use_log']
                     case = config[cs]['case'] 
                     res = list(islice(shortest_simple_paths(G, source=target, target=source, weight=func), 1))
