@@ -398,7 +398,7 @@ def callable(source, target, amt, result, name):
     
     
     def primitive(c, x):
-        s = 3e8 #fine tune 's' for improved performance
+        s = 3e5 #fine tune 's' for improved performance
         ecs = math.exp(-c/s)
         exs = math.exp(-x/s)
         excs = math.exp((x-c)/s)
@@ -449,6 +449,11 @@ def callable(source, target, amt, result, name):
                 prob_dict[v,u] = prob
             else:
                 pred_node = prev_dict[v][0]
+                if u == source:
+                    if G.edges[u,v]["Balance"]<amt_dict[(u,v)]:
+                        prob = 0
+                    else:
+                        prob = 1
                 prob *= prob_dict[pred_node, v]
                 prob_dict[v,u] = prob
             if prob == 0 or prob < 0.01:
@@ -527,7 +532,13 @@ def callable(source, target, amt, result, name):
         fee = fee_dict[(u,v)]
         curr_amt = amt_dict[(u,v)] - fee
         try:
-            cap_bias = math.log(cap+1) - math.log(cap+1-curr_amt)
+            if u == source:
+                if G.edges[u,v]['Balance'] < amt_dict[(u,v)]:
+                    cap_bias = float('inf')
+                else:
+                    cap_bias = 0
+            else:
+                cap_bias = math.log(cap+1) - math.log(cap+1-curr_amt)
         except:
             cap_bias = float('inf')
         cost = (fee+((curr_amt*rf_cln*G.edges[u,v]["Delay"])/(blk_per_year*100))+1)*(cap_bias+1)
@@ -555,9 +566,15 @@ def callable(source, target, amt, result, name):
         hopcost =  hop_base + hop_amt * hop_rate
         #Success Probability
         if G.edges[u,v]["capacity"] != 0:
-            prob = 1 - (hop_amt/G.edges[u,v]["capacity"])
+            if u == source:
+                if G.edges[u,v]["Balance"]<amt_dict[(u,v)]:
+                    prob = 0
+                else:
+                    prob = 1
+            else:
+                prob = 1 - (hop_amt/G.edges[u,v]["capacity"])
         else:
-            prob = 0        
+            prob = 0 
         #risk cost
         risk_cost = amt_dict[(u,v)] * G.edges[u,v]["Delay"] * locked_funds_risk
         #failure cost
@@ -590,12 +607,13 @@ def callable(source, target, amt, result, name):
         return liq_penalty + amt_penalty
     
     
-    def ldk_prob(a, min_liq, max_liq, cap, success_flag):
+    def ldk_prob(a, min_liq, max_liq, cap, success_flag, case):
         min_liquidity = min_liq
-        if linear_success_prob == 'True':
+        # if linear_success_prob == 'True':
+        if case == 'linear':
             num = max_liq - a
             den = max_liq - min_liq + 1
-        else:
+        elif case == 'bimodal':
             min_liq = min_liq/cap
             max_liq = max_liq/cap
             a = a/cap
@@ -609,7 +627,7 @@ def callable(source, target, amt, result, name):
         return num, den
             
     
-    def liq_penalty(v,u):
+    def liq_penalty(v,u,case):
         capacity = G.edges[u,v]["capacity"]
         max_liquidity = capacity - max_liq_offset
         min_liquidity = min(min_liq_offset, max_liquidity)
@@ -619,7 +637,7 @@ def callable(source, target, amt, result, name):
         elif a >= max_liquidity:
             res = ldk_combined_penalty(a, 2*2048, liquidity_penalty_multiplier, liquidity_penalty_amt_multiplier)
         else:
-            (num, den) = ldk_prob(a, min_liquidity, max_liquidity, capacity, False)
+            (num, den) = ldk_prob(a, min_liquidity, max_liquidity, capacity, False, case)
             if (den-num)<(den/64):
                 res = 0
             else:
@@ -629,29 +647,35 @@ def callable(source, target, amt, result, name):
             res = res + ldk_combined_penalty(a, 2*2048, hist_liquidity_penalty_multiplier, hist_liquidity_penalty_amt_multiplier)
             return res
         if hist_liquidity_penalty_multiplier != 0 or hist_liquidity_penalty_amt_multiplier!=0:
-            (num, den) = ldk_prob(a, 0, capacity, capacity, True)
+            (num, den) = ldk_prob(a, 0, capacity, capacity, True, case)
             neg_log = ldk_neg_log10(num, den)
             res = res + ldk_combined_penalty(a, neg_log, hist_liquidity_penalty_multiplier, hist_liquidity_penalty_amt_multiplier)
         return res
     
-    def final_penalty(v,u):
+    def final_penalty(v,u,case):
         htlc_max = G.edges[u,v]["htlc_max"]
         anti_probing_penalty = 0
         if htlc_max >= G.edges[u,v]["capacity"]/2:
             anti_probing_penalty = 250/1000
         penalty_base = base_penalty/1000 + ((multiplier/1000)*amt_dict[(u,v)])/2**30
-        penalty_liquidity = liq_penalty(v,u)
+        if u == source:
+            if G.edges[u,v]['Balance'] < amt_dict[(u,v)]:
+                penalty_liquidity = float('inf')
+            else:
+                penalty_liquidity = 0
+        penalty_liquidity = liq_penalty(v,u,case)
         penalty_total = penalty_base + penalty_liquidity + anti_probing_penalty
         return penalty_total
             
 
     def ldk_cost(v,u,d):
+        global case
         htlc_minimum = G.edges[u,v]['htlc_min']
         # curr_min = max(nextHopHtlcmin, htlc_minimum)
         htlc_fee = htlc_minimum * G.edges[u,v]['FeeRate'] + G.edges[u,v]['BaseFee']
         path_htlc_minimum = htlc_fee + htlc_minimum
         compute_fee(v,u,d)
-        penalty = final_penalty(v,u)
+        penalty = final_penalty(v,u,case)
         cost = max(fee_dict[(u,v)], path_htlc_minimum) + penalty
         return cost
     
@@ -740,7 +764,6 @@ def callable(source, target, amt, result, name):
         prev_dict = {}
         paths = {target:[target]}
         
-        
         try:
             print("\n**",name,"**")
             if name != 'Eclair':
@@ -772,12 +795,27 @@ def callable(source, target, amt, result, name):
                         #     case = config[name][cs]
                         #     dijkstra_caller(cs, func)
                         # prob_dict[cs] = prob_check
+                        
+                elif name == 'LDK':
+                    ldkcase = config['General']['ldkcase'].split('|')
+                    for cs in ldkcase:
+                        fee_dict = {}
+                        amt_dict = {}
+                        prob_dict = {}
+                        cache_node = target
+                        visited = set()
+                        prev_dict = {}
+                        paths = {target:[target]}
+                        
+                        func = ldk_cost  
+                        case = config[name][cs]
+                        dijkstra_caller(cs, func)                    
+                                                
                 else:
                     dijkstra_caller(name, func)
             else:
                 eclaircase = config['General']['eclaircase'].split('|')
                 for cs in eclaircase:
-                    
                     fee_dict = {}
                     amt_dict = {}
                     prob_dict = {}
@@ -935,24 +973,16 @@ if __name__ == '__main__':
     fields = ['Source', 'Target', 'Amount'] 
     lndcase = config['General']['lndcase'].split('|')
     eclaircase = config['General']['eclaircase'].split('|')
+    ldkcase = config['General']['ldkcase'].split('|')
     if 'LND' in algos:
-        # if 'LND1' in lndcase:
-        #     fields.append('LND1')
-        # if 'LND2' in lndcase:
-        #     fields.append('LND2')
         for cs in lndcase:
             fields.append(cs)
     if 'CLN' in algos:
         fields.append('CLN')
     if 'LDK' in algos:
-        fields.append('LDK')
+        for cs in ldkcase:
+            fields.append(cs)
     if 'Eclair' in algos:
-        # if 'Eclair_case1' in eclaircase:
-        #     fields.append('Eclair_case1')
-        # if 'Eclair_case2' in eclaircase:
-        #     fields.append('Eclair_case2')
-        # if 'Eclair_case3' in eclaircase:
-        #     fields.append('Eclair_case3')
         for cs in eclaircase:
             fields.append(cs)
     
