@@ -40,8 +40,9 @@ General:
 - datasampling: Choose distribution type (bimodal or uniform) for channel balance sampling.
 - algos: Specify which LN clients to test, separated by "|" (e.g., LND|CLN|LDK|Eclair or just CLN).
 - lndcase: Specify the LND cases to test, separated by "|". Use LND1 for 'Apriori' and LND2 for 'Bimodal' probability estimations (e.g., LND1|LND2)
-- eclaircase: Specify the Eclair cases to test, separated by "|". Use Eclair_case1, Eclair_case2, and Eclair_case3 for cases that employ Weight Ratios, Heuristics without logarithm, and
-  Heuristics with logarithm, respectively.s (e.g., Eclair_case1|Eclair_case2|Eclair_case3)
+- ldkcase: Specify the LDK cases to test, separated by "|". Use LDK1 for 'Uniform' and LDK2 for 'Bimodal' probability estimations (e.g., LDK1|LDK2)
+- eclaircase: Specify the Eclair cases to test, separated by "|". Use Eclair1, Eclair2, and Eclair3 for cases that employ Weight Ratios, Heuristics without logarithm, and
+  Heuristics with logarithm, respectively.s (e.g., Eclair1|Eclair2|Eclair3)
 
 ### analysis.py
 This script is used to visualize and analyze the simulation results.
