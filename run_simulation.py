@@ -398,11 +398,16 @@ def callable(source, target, amt, result, name):
     
     
     def primitive(c, x):
-        s = 3e5 #fine tune 's' for improved performance
+        if datasample == 'uniform':
+            s = 3e5 #fine tune 's' for improved performance
+        else:
+            s = c/10
         ecs = math.exp(-c/s)
         exs = math.exp(-x/s)
         excs = math.exp((x-c)/s)
         norm = -2*ecs + 2
+        if norm == 0:
+            return 0
         return (excs - exs)/norm
     
     
@@ -427,7 +432,7 @@ def callable(source, target, amt, result, name):
     
     
     #v - target, u - source, d - G.edges[v,u]
-    def lnd_cost2(v,u,d):
+    def lnd_cost(v,u,d):
         try:
             global prob_check, prob_dict#new
             global timepref, case
@@ -463,38 +468,50 @@ def callable(source, target, amt, result, name):
             dist = fee_dict[(u,v)] + G.edges[u,v]['Delay']*amt_dict[(u,v)]*rf
             return dist, cost
         except:
-            raise
+            pass
 
 
     #v - target, u - source, d - G.edges[v,u]
-    # def lnd_cost(v,u,d):
-    #     # global prob_check, prob_dict#new
-    #     global timepref, case
-    #     compute_fee(v,u,d)        
-    #     timepref *= 0.9
-    #     defaultattemptcost = attemptcost+attemptcostppm*amt_dict[(u,v)]/1000000
-    #     penalty = defaultattemptcost * (1/(0.5-timepref/2) - 1)
-    #     cap = G.edges[u,v]["capacity"]
-    #     if case == 'apriori':
-    #         prob_weight = 2**G.edges[u,v]["LastFailure"]
-    #         den = 1+math.exp(-(amt_dict[(u,v)] - capfraction*cap)/(smearing*cap))
-    #         nodeprob = apriori * (1-(0.5/den))
-    #         prob = nodeprob * (1-(1/prob_weight))
-    #         # prob_check[u,v] = prob
-    #     elif case == 'bimodal':
-    #         prob = bimodal(cap, G.edges[u,v]['UpperBound'], G.edges[u,v]["LowerBound"], amt_dict[(u,v)]) 
-    #         # prob_dict[(v,u)] = prob
-    #     # if v == target:
-    #     #     prob_dict[v,u] = prob
-    #     # else:
-    #     #     pred_node = prev_dict[v][0]
-    #     #     prob *= prob_dict[pred_node, v]
-    #     #     prob_dict[v,u] = prob
-    #     if prob == 0 or prob < 0.01:
-    #         cost = float('inf')
-    #     else:
-    #         cost = fee_dict[(u,v)] + G.edges[u,v]['Delay']*amt_dict[(u,v)]*rf + penalty/prob
-    #     return cost
+    def lnd_cost_test(v,u,d):
+        try:
+            global prob_check, prob_dict#new
+            global timepref, case
+            compute_fee(v,u,d)        
+            timepref *= 0.9
+            defaultattemptcost = attemptcost+attemptcostppm*amt_dict[(u,v)]/1000000
+            penalty = defaultattemptcost * (1/(0.5-timepref/2) - 1)
+            cap = G.edges[u,v]["capacity"]
+            # if case == 'apriori':
+            #     prob_weight = 2**G.edges[u,v]["LastFailure"]
+            #     den = 1+math.exp(-(amt_dict[(u,v)] - capfraction*cap)/(smearing*cap))
+            #     nodeprob = apriori * (1-(0.5/den))
+            #     prob = nodeprob * (1-(1/prob_weight))
+            #     # prob_check[u,v] = prob
+            # elif case == 'bimodal':
+            #     prob = bimodal(cap, G.edges[u,v]['UpperBound'], G.edges[u,v]["LowerBound"], amt_dict[(u,v)]) 
+                # prob_dict[(v,u)] = prob
+            prob = (G.edges[u,v]['UpperBound'] - amt_dict[(u,v)])/(G.edges[u,v]['UpperBound'] - G.edges[u,v]["LowerBound"])
+            # prob = 1 - (amt_dict[(u,v)]/cap)
+            if v == target:
+                prob_dict[v,u] = prob
+            else:
+                pred_node = prev_dict[v][0]
+                if u == source:
+                    if G.edges[u,v]["Balance"]<amt_dict[(u,v)]:
+                        prob = 0
+                    else:
+                        prob = 1
+                prob *= prob_dict[pred_node, v]
+                prob_dict[v,u] = prob
+            if prob == 0 or prob < 0.01:
+                cost = float('inf')
+            else:
+                cost = penalty/prob
+            dist = fee_dict[(u,v)] + G.edges[u,v]['Delay']*amt_dict[(u,v)]*rf
+            return dist, cost
+        except:
+            pass
+
 
     #v - target, u - source, d - G.edges[v,u]
     # def test_lnd_cost(v,u,d):
@@ -764,58 +781,43 @@ def callable(source, target, amt, result, name):
         prev_dict = {}
         paths = {target:[target]}
         
-        try:
-            print("\n**",name,"**")
-            if name != 'Eclair':
-                if name == 'LND':
-                    lndcase = config['General']['lndcase'].split('|')
-                    for cs in lndcase:
-                        
-                        fee_dict = {}
-                        amt_dict = {}
-                        prob_dict = {}
-                        cache_node = target
-                        visited = set()
-                        prev_dict = {}
-                        paths = {target:[target]}
-                        
-                        if cs in ['LND1', 'LND2']:
-                            func = lnd_cost2
-                            case = config[name][cs]
-                            dist = dijkstra_lnd(G, sources=[target], target=source, weight = func, pred=prev_dict, paths=paths)
-                            res = paths[source]
-                            print("Path found by", cs, res[::-1])
-                            result[cs] = route(G, res, source, target)
-                            
-                        # else:
-                        #     if cs in ['test_lnd1', 'test_lnd2']:
-                        #         func = test_lnd_cost
-                        #     else:
-                        #         func = lnd_cost
-                        #     case = config[name][cs]
-                        #     dijkstra_caller(cs, func)
-                        # prob_dict[cs] = prob_check
-                        
-                elif name == 'LDK':
-                    ldkcase = config['General']['ldkcase'].split('|')
-                    for cs in ldkcase:
-                        fee_dict = {}
-                        amt_dict = {}
-                        prob_dict = {}
-                        cache_node = target
-                        visited = set()
-                        prev_dict = {}
-                        paths = {target:[target]}
-                        
-                        func = ldk_cost  
+        # try:
+        print("\n**",name,"**")
+        if name != 'Eclair':
+            if name == 'LND':
+                lndcase = config['General']['lndcase'].split('|')
+                for cs in lndcase:
+                    fee_dict = {}
+                    amt_dict = {}
+                    prob_dict = {}
+                    cache_node = target
+                    visited = set()
+                    prev_dict = {}
+                    paths = {target:[target]}
+                    if cs in ['LND1', 'LND2']:
                         case = config[name][cs]
-                        dijkstra_caller(cs, func)                    
-                                                
-                else:
-                    dijkstra_caller(name, func)
-            else:
-                eclaircase = config['General']['eclaircase'].split('|')
-                for cs in eclaircase:
+                        dist = dijkstra_lnd(G, sources=[target], target=source, weight = func, pred=prev_dict, paths=paths)
+                        res = paths[source]
+                        print("Path found by", cs, res[::-1])
+                        result[cs] = route(G, res, source, target)
+                    else:
+                        case = cs
+                        dist = dijkstra_lnd(G, sources=[target], target=source, weight = lnd_cost_test, pred=prev_dict, paths=paths)
+                        res = paths[source]
+                        print("Path found by", cs, res[::-1])
+                        result[cs] = route(G, res, source, target)
+                    # else:
+                    #     if cs in ['test_lnd1', 'test_lnd2']:
+                    #         func = test_lnd_cost
+                    #     else:
+                    #         func = lnd_cost
+                    #     case = config[name][cs]
+                    #     dijkstra_caller(cs, func)
+                    # prob_dict[cs] = prob_check
+                    
+            elif name == 'LDK':
+                ldkcase = config['General']['ldkcase'].split('|')
+                for cs in ldkcase:
                     fee_dict = {}
                     amt_dict = {}
                     prob_dict = {}
@@ -824,16 +826,33 @@ def callable(source, target, amt, result, name):
                     prev_dict = {}
                     paths = {target:[target]}
                     
-                    use_log = config[cs]['use_log']
-                    case = config[cs]['case'] 
-                    res = list(islice(shortest_simple_paths(G, source=target, target=source, weight=func), 1))
-                    for path in res:
-                        print("Path found by", cs, path[::-1])
-                        result[cs] = route(G, path, source, target)
-        except Exception as e:
-            print(e)
+                    func = ldk_cost  
+                    case = config[name][cs]
+                    dijkstra_caller(cs, func)                    
+                                            
+            else:
+                dijkstra_caller(name, func)
+        else:
+            eclaircase = config['General']['eclaircase'].split('|')
+            for cs in eclaircase:
+                fee_dict = {}
+                amt_dict = {}
+                prob_dict = {}
+                cache_node = target
+                visited = set()
+                prev_dict = {}
+                paths = {target:[target]}
+                
+                use_log = config[cs]['use_log']
+                case = config[cs]['case'] 
+                res = list(islice(shortest_simple_paths(G, source=target, target=source, weight=func), 1))
+                for path in res:
+                    print("Path found by", cs, path[::-1])
+                    result[cs] = route(G, path, source, target)
+        # except Exception as e:
+        #     print(e)
             
-    algo = {'LND':lnd_cost2, 'CLN':cln_cost, 'LDK':ldk_cost, 'Eclair':eclair_cost} 
+    algo = {'LND':lnd_cost, 'CLN':cln_cost, 'LDK':ldk_cost, 'Eclair':eclair_cost} 
     global fee_dict, amt_dict, cache_node, visited
     global prev_dict, paths, prob_dict
     fee_dict = {}
@@ -985,7 +1004,7 @@ if __name__ == '__main__':
     if 'Eclair' in algos:
         for cs in eclaircase:
             fields.append(cs)
-    
+            
     filename = config['General']['filename'] 
     with open(filename, 'w') as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fields)
