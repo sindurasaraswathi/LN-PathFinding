@@ -25,7 +25,7 @@ import multiprocessing as mp
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.optimize as opt
-# import pickle
+import pickle
 
 startTime = datetime.datetime.now()
  
@@ -51,6 +51,17 @@ apriori = float(config['LND']['apriori'])
 rf = float(config['LND']['riskfactor'])
 capfraction = float(config['LND']['capfraction'])
 smearing = float(config['LND']['smearing'])
+
+global bimodal_lnd_scale, lnd_scale
+bimodal_scales = eval(config['LND']['bimodal_lnd_scale'])
+if type(bimodal_scales) != list:
+    print('Configuration file error: bimodal_lnd_scale not set as a list')
+    raise 
+bimodal_lnd_scale = []
+for bls in bimodal_scales:
+    bimodal_lnd_scale.append(float(bls))
+    
+lnd_scale = 3e5
 
 
 #CLN
@@ -398,10 +409,16 @@ def callable(source, target, amt, result, name):
     
     
     def primitive(c, x):
-        if datasample == 'uniform':
-            s = 3e5 #fine tune 's' for improved performance
+        # if datasample == 'uniform':
+        #     s = 3e5 #fine tune 's' for improved performance
+        # else:
+        #     s = c/10
+        global lnd_scale
+        test_scales = config['LND']['test_scales']
+        if test_scales == 'True':
+            s = c/lnd_scale
         else:
-            s = c/10
+            s = lnd_scale
         ecs = math.exp(-c/s)
         exs = math.exp(-x/s)
         excs = math.exp((x-c)/s)
@@ -740,6 +757,7 @@ def callable(source, target, amt, result, name):
         global fee_dict, amt_dict, cache_node, visited
         global prev_dict, paths, prob_dict
         global use_log, case
+        global bimodal_lnd_scale, lnd_scale
         
         fee_dict = {}
         amt_dict = {}
@@ -754,30 +772,35 @@ def callable(source, target, amt, result, name):
         if name != 'Eclair':
             if name == 'LND':
                 lndcase = config['General']['lndcase'].split('|')
-                for cs in lndcase:
-                    try:
-                        fee_dict = {}
-                        amt_dict = {}
-                        prob_dict = {}
-                        cache_node = target
-                        visited = set()
-                        prev_dict = {}
-                        paths = {target:[target]}
-                        if cs in ['LND1', 'LND2']:
-                            case = config[name][cs]
-                            dist = dijkstra_lnd(G, sources=[target], target=source, weight = func, pred=prev_dict, paths=paths)
-                            res = paths[source]
-                            print("Path found by", cs, res[::-1])
-                            result[cs] = route(G, res, source, target)
-                        else:
-                            case = cs
-                            dist = dijkstra_lnd(G, sources=[target], target=source, weight = lnd_cost_test, pred=prev_dict, paths=paths)
-                            res = paths[source]
-                            print("Path found by", cs, res[::-1])
-                            result[cs] = route(G, res, source, target)
-                    except Exception as e:
-                        print("Error:", e)
-                        pass
+                for bls in bimodal_lnd_scale:
+                    lnd_scale = bls
+                    for cs in lndcase:
+                        try:
+                            fee_dict = {}
+                            amt_dict = {}
+                            prob_dict = {}
+                            cache_node = target
+                            visited = set()
+                            prev_dict = {}
+                            paths = {target:[target]}
+                            if cs in ['LND1', 'LND2']:
+                                case = config[name][cs]
+                                dist = dijkstra_lnd(G, sources=[target], target=source, weight = func, pred=prev_dict, paths=paths)
+                                res = paths[source]
+                                print("Path found by", cs, res[::-1])
+                                if config['LND']['test_scales'] == 'True':
+                                    result[f'LND2: c/{lnd_scale}'] = route(G, res, source, target)
+                                else:
+                                    result[cs] = route(G, res, source, target)
+                            else:
+                                case = cs
+                                dist = dijkstra_lnd(G, sources=[target], target=source, weight = lnd_cost_test, pred=prev_dict, paths=paths)
+                                res = paths[source]
+                                print("Path found by", cs, res[::-1])
+                                result[cs] = route(G, res, source, target)
+                        except Exception as e:
+                            print("Error:", e)
+                            pass
 
                     
             elif name == 'LDK':
@@ -832,6 +855,8 @@ def callable(source, target, amt, result, name):
     algo = {'LND':lnd_cost, 'CLN':cln_cost, 'LDK':ldk_cost, 'Eclair':eclair_cost} 
     global fee_dict, amt_dict, cache_node, visited
     global prev_dict, paths, prob_dict
+    global bimodal_lnd_scale, lnd_scale
+    
     fee_dict = {}
     amt_dict = {}
     prob_dict = {}
@@ -925,6 +950,9 @@ if __name__ == '__main__':
             k = (i%amt_end_range)+1 #i%6 for fair node else i%8 
             amt = rn.randint(10**(k-1), 10**k)
             
+            # k = (i%3)+5#comment this
+            # amt = rn.randint(10**(k-1), 10**k)#comment this
+            
         result = {}
         source = -1
         target = -1
@@ -947,6 +975,9 @@ if __name__ == '__main__':
         # work.append((source, target, amt, result, 'LND')) #new
         i = i+1
     
+    
+    # with open('work_list.pkl', 'rb') as f:
+    #     work = pickle.load(f)
     pool = mp.Pool(processes=8)
     a = pool.starmap(callable, work)
     result_list.append(a)
@@ -966,21 +997,21 @@ if __name__ == '__main__':
 
             
     # fields = ['Source', 'Target', 'Amount', 'LND1', 'LND2', 'CLN', 'LDK', 'Eclair_case1', 'Eclair_case2', 'Eclair_case3']#uncomment
-    fields = ['Source', 'Target', 'Amount'] 
-    lndcase = config['General']['lndcase'].split('|')
-    eclaircase = config['General']['eclaircase'].split('|')
-    ldkcase = config['General']['ldkcase'].split('|')
-    if 'LND' in algos:
-        for cs in lndcase:
-            fields.append(cs)
-    if 'CLN' in algos:
-        fields.append('CLN')
-    if 'LDK' in algos:
-        for cs in ldkcase:
-            fields.append(cs)
-    if 'Eclair' in algos:
-        for cs in eclaircase:
-            fields.append(cs)
+    fields = list(a[0].keys())
+    # lndcase = config['General']['lndcase'].split('|')
+    # eclaircase = config['General']['eclaircase'].split('|')
+    # ldkcase = config['General']['ldkcase'].split('|')
+    # # if 'LND' in algos:
+    #     for cs in lndcase:
+    #         fields.append(cs)
+    # if 'CLN' in algos:
+    #     fields.append('CLN')
+    # if 'LDK' in algos:
+    #     for cs in ldkcase:
+    #         fields.append(cs)
+    # if 'Eclair' in algos:
+    #     for cs in eclaircase:
+    #         fields.append(cs)
             
     filename = config['General']['filename'] 
     with open(filename, 'w') as csvfile:
