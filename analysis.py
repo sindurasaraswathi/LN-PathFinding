@@ -5,6 +5,9 @@ Created on Mon Feb 12 13:47:20 2024
 
 @author: ssarasw2
 """
+import warnings
+
+warnings.filterwarnings("ignore")
 
 import pandas as pd
 import ast
@@ -15,6 +18,8 @@ from statistics import mean, mode, median
 from tabulate import tabulate
 from ordered_set import OrderedSet
 import configparser
+from scipy import stats
+
 
 config = configparser.ConfigParser()
 config.read('analysis_config.ini')
@@ -175,6 +180,7 @@ for i in df1.index:
      
 # save_df = pd.DataFrame(index=['Weighted avg median fee', 'WAvg path length', 'WAvg Delay', 'avg_path', 'Avg delay'])
 save_df = pd.DataFrame(columns=algo)
+mad_df = pd.DataFrame(columns=algo)
 metrics_df = pd.DataFrame(index=['Fee Ratio', 'Path Length', 'Timelock'])
 for a in algo:
     # pdf = pd.DataFrame(columns=['Fee ratio'])
@@ -187,22 +193,38 @@ for a in algo:
     fee_list, fee_med, amount_list, fee_med_ratio, fee_ratio_list = fee_df(val, name, step)
     plot_graph(fee_list, 0, 'box', False, True, f'{a} Fee', 'Amount Bins', 'Fee (log scale)')
     # plot_graph(range(len(fee_med)), fee_med,'scatter', False, True, f'{a} Median Fee', 'Amount', 'Fee')
-        
+    
     w_sum = 0 
     p_sum = 0
     d_sum = 0
     total_weight = 0   
-    fee_mega = []                       
+    fee_mega = [] 
+    fee_std = [] 
+    fee_MAD = []                     
     for j in range(len(fee_ratio_list)):
         fee_mega = fee_mega+fee_ratio_list[j] #overall fee ratio list
-    save_df[a] = fee_med_ratio
-    
+        fee_std.append(np.std(fee_ratio_list[j]))
+        fee_MAD.append(stats.median_abs_deviation(fee_ratio_list[j]))
+    fee_med_std = []
+    fee_med_MAD = []
+    for k in range(len(fee_med_ratio)):
+        med = round(fee_med_ratio[k] * 100,3)
+        std = round(fee_std[k] * 100,3)
+        mad = round(fee_MAD[k] * 100,3)
+        fee_med_std.append(f'{med}\xB1{std}')
+        fee_med_MAD.append(f'{med}\xB1{mad}')
+        
+    save_df[a] = fee_med_std
+    mad_df[a] = fee_med_MAD
+    # save_df[a] = fee_med_ratio
     #Metrics statitics in metrics_df
     metrics_df[a] = [median(fee_mega)*100, sfee[[f'{a}pthlnt']].mean()[0], sfee[[f'{a}dly']].mean()[0]] #save this for fee
 
 # print(save_df)
     
 print('\n', tabulate(metrics_df, headers = 'keys', tablefmt = 'psql', showindex=True))
+
+
 #-------------------------------------------------------------------------------------------------
 def sns_plot(data, kind, xlog, ylog, title, xlabel, ylabel):
     fig, ax = plt.subplots(figsize=plt.figaspect(1/3))

@@ -4,8 +4,6 @@ Created on Tue Nov  7 11:08:01 2023
 
 @author: sindu
 """
-#new remove
-#uncomment - do it
    
 import datetime
 import networkx as nx
@@ -419,6 +417,8 @@ def callable(source, target, amt, result, name):
             s = c/lnd_scale
         else:
             s = lnd_scale
+        if lnd_scale == 3e5:
+            s = 3e5
         ecs = math.exp(-c/s)
         exs = math.exp(-x/s)
         excs = math.exp((x-c)/s)
@@ -752,6 +752,18 @@ def callable(source, target, amt, result, name):
         print("Path found by", res_name, res[::-1])
         result[res_name] = route(G, res, source, target)
         
+    def modified_dijkstra_caller(res_name, func):
+        dist = dijkstra_lnd(G, sources=[target], target=source, weight = func, pred=prev_dict, paths=paths)
+        res = paths[source]
+        print("Path found by", res_name, res[::-1])
+        if res_name == 'LND2':
+            if config['LND']['test_scales'] == 'True':
+                result[f'LND2: c/{lnd_scale}'] = route(G, res, source, target)
+            else:
+                result[res_name] = route(G, res, source, target)
+        else:
+            result[res_name] = route(G, res, source, target)
+        
         
     def helper(name, func):
         global fee_dict, amt_dict, cache_node, visited
@@ -759,61 +771,55 @@ def callable(source, target, amt, result, name):
         global use_log, case
         global bimodal_lnd_scale, lnd_scale
         
-        fee_dict = {}
-        amt_dict = {}
-        prob_dict = {}
-        cache_node = target
-        visited = set()
-        prev_dict = {}
-        paths = {target:[target]}
+        def clear_globals():
+            global fee_dict, amt_dict, cache_node, visited
+            global prev_dict, paths, prob_dict
+            fee_dict = {}
+            amt_dict = {}
+            prob_dict = {}
+            cache_node = target
+            visited = set()
+            prev_dict = {}
+            paths = {target:[target]}
+            
+        
+        clear_globals()
         
         # try:
         print("\n**",name,"**")
         if name != 'Eclair':
             if name == 'LND':
                 lndcase = config['General']['lndcase'].split('|')
-                for bls in bimodal_lnd_scale:
-                    lnd_scale = bls
-                    for cs in lndcase:
-                        try:
-                            fee_dict = {}
-                            amt_dict = {}
-                            prob_dict = {}
-                            cache_node = target
-                            visited = set()
-                            prev_dict = {}
-                            paths = {target:[target]}
-                            if cs in ['LND1', 'LND2']:
-                                case = config[name][cs]
-                                dist = dijkstra_lnd(G, sources=[target], target=source, weight = func, pred=prev_dict, paths=paths)
-                                res = paths[source]
-                                print("Path found by", cs, res[::-1])
-                                if config['LND']['test_scales'] == 'True':
-                                    result[f'LND2: c/{lnd_scale}'] = route(G, res, source, target)
-                                else:
-                                    result[cs] = route(G, res, source, target)
+                for cs in lndcase:
+                    try:
+                        clear_globals()
+                        if cs in ['LND1', 'LND2']:
+                            case = config[name][cs]
+                            if cs == 'LND2':
+                                for bls in bimodal_lnd_scale:
+                                    lnd_scale = bls
+                                    clear_globals()
+                                    modified_dijkstra_caller(cs, func)
                             else:
-                                case = cs
-                                dist = dijkstra_lnd(G, sources=[target], target=source, weight = lnd_cost_test, pred=prev_dict, paths=paths)
-                                res = paths[source]
-                                print("Path found by", cs, res[::-1])
-                                result[cs] = route(G, res, source, target)
-                        except Exception as e:
-                            print("Error:", e)
-                            pass
+                                modified_dijkstra_caller(cs, func)
+                                
+                        else:
+                            case = cs
+                            # dist = dijkstra_lnd(G, sources=[target], target=source, weight = lnd_cost_test, pred=prev_dict, paths=paths)
+                            # res = paths[source]
+                            # print("Path found by", cs, res[::-1])
+                            # result[cs] = route(G, res, source, target)
+                            modified_dijkstra_caller(cs, lnd_cost_test)
+                    except Exception as e:
+                        print("Error:", e)
+                        pass
 
                     
             elif name == 'LDK':
                 ldkcase = config['General']['ldkcase'].split('|')
                 for cs in ldkcase:
                     try:
-                        fee_dict = {}
-                        amt_dict = {}
-                        prob_dict = {}
-                        cache_node = target
-                        visited = set()
-                        prev_dict = {}
-                        paths = {target:[target]}
+                        clear_globals()
                         
                         func = ldk_cost  
                         case = config[name][cs]
@@ -832,13 +838,7 @@ def callable(source, target, amt, result, name):
             eclaircase = config['General']['eclaircase'].split('|')
             for cs in eclaircase:
                 try: 
-                    fee_dict = {}
-                    amt_dict = {}
-                    prob_dict = {}
-                    cache_node = target
-                    visited = set()
-                    prev_dict = {}
-                    paths = {target:[target]}
+                    clear_globals()
                     
                     use_log = config[cs]['use_log']
                     case = config[cs]['case'] 
@@ -995,23 +995,8 @@ if __name__ == '__main__':
             temp = {}
             i = 0
 
-            
-    # fields = ['Source', 'Target', 'Amount', 'LND1', 'LND2', 'CLN', 'LDK', 'Eclair_case1', 'Eclair_case2', 'Eclair_case3']#uncomment
+           
     fields = list(a[0].keys())
-    # lndcase = config['General']['lndcase'].split('|')
-    # eclaircase = config['General']['eclaircase'].split('|')
-    # ldkcase = config['General']['ldkcase'].split('|')
-    # # if 'LND' in algos:
-    #     for cs in lndcase:
-    #         fields.append(cs)
-    # if 'CLN' in algos:
-    #     fields.append('CLN')
-    # if 'LDK' in algos:
-    #     for cs in ldkcase:
-    #         fields.append(cs)
-    # if 'Eclair' in algos:
-    #     for cs in eclaircase:
-    #         fields.append(cs)
             
     filename = config['General']['filename'] 
     with open(filename, 'w') as csvfile:
